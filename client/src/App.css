@@ -1,0 +1,355 @@
+:root {
+  --bg: #f0f1f6;
+  --bg-grad-1: #eef1ff;
+  --bg-grad-2: #f7eefc;
+  --card-bg: #ffffff;
+  --text: #1a1a2e;
+  --text-muted: #6b6b7b;
+  --border: #e4e4ee;
+  --accent-1: #6d5ef8;
+  --accent-2: #a06df5;
+  --danger-bg: #fdeceb;
+  --danger-text: #b3261e;
+  --shadow: 0 8px 24px rgba(30, 20, 60, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131320;
+    --bg-grad-1: #17182a;
+    --bg-grad-2: #1c1730;
+    --card-bg: #1c1d2e;
+    --text: #eeeef5;
+    --text-muted: #9797ab;
+    --border: #2c2c40;
+    --accent-1: #8f7dfb;
+    --accent-2: #c08bfb;
+    --danger-bg: #3a1f22;
+    --danger-text: #f3948d;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 0%, var(--bg-grad-1), transparent 55%),
+    radial-gradient(circle at 85% 15%, var(--bg-grad-2), transparent 50%), var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: 4rem 1.25rem;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+}
+
+.app {
+  width: 100%;
+  max-width: 620px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+h1 {
+  font-size: 2.1rem;
+  margin: 0 0 0.35rem;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.direction-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.lang-pill {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.lang-pill.active {
+  color: white;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border-color: transparent;
+}
+
+.swap-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 1.05rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.swap-btn:hover {
+  transform: rotate(180deg);
+  border-color: var(--accent-1);
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+textarea {
+  width: 100%;
+  font-size: 1.05rem;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  resize: vertical;
+  outline: none;
+  min-height: 5rem;
+}
+
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.3rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: white;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  box-shadow: 0 4px 14px rgba(109, 94, 248, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(109, 94, 248, 0.45);
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.ghost:not(:disabled):hover {
+  border-color: var(--accent-1);
+}
+
+.link {
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.spinner.dark {
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: var(--accent-1);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-banner {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 0.9rem;
+}
+
+.result-card {
+  margin-top: 1.25rem;
+  animation: fade-up 0.25s ease;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.translated {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  line-height: 1.4;
+}
+
+.transliteration {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 0.5rem;
+}
+
+.notes {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.result-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.history {
+  margin-top: 2rem;
+}
+
+.history-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.history-header h2 {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0;
+  font-weight: 700;
+}
+
+.history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.history li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+  overflow: hidden;
+}
+
+.history li:hover {
+  border-color: var(--accent-1);
+}
+
+.history-input {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.history-arrow {
+  color: var(--accent-1);
+  flex-shrink: 0;
+}
+
+.history-output {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
