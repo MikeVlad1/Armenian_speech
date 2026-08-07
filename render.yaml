@@ -15,6 +15,12 @@ services:
         sync: false
       - key: FRONTEND_ORIGIN
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
 
   - type: web
     name: armenian-speaker-client

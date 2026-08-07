@@ -2,15 +2,76 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
+import Stripe from 'stripe';
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true }));
 app.use(express.json({ limit: '1mb' }));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
+const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
+
+const FREE_DAILY_LIMITS = { translate: 15, speak: 30 };
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SUBSCRIPTION_CACHE_MS = 5 * 60 * 1000;
+
+// In-memory only — resets on server restart. Acceptable tradeoff for a
+// hobby-scale app; see README/task notes for the reasoning.
+const usageByKey = new Map();
+const subscriptionCache = new Map();
+
+function checkFreeLimit(ip, action) {
+  const key = `${ip}:${action}`;
+  const now = Date.now();
+  const entry = usageByKey.get(key);
+  if (!entry || now > entry.resetAt) {
+    usageByKey.set(key, { count: 1, resetAt: now + DAY_MS });
+    return true;
+  }
+  if (entry.count >= FREE_DAILY_LIMITS[action]) return false;
+  entry.count += 1;
+  return true;
+}
+
+async function isActiveSubscription(accessCode) {
+  if (!accessCode || !stripe) return false;
+  const cached = subscriptionCache.get(accessCode);
+  if (cached && Date.now() - cached.checkedAt < SUBSCRIPTION_CACHE_MS) {
+    return cached.active;
+  }
+  try {
+    const subscription = await stripe.subscriptions.retrieve(accessCode);
+    const active = subscription.status === 'active' || subscription.status === 'trialing';
+    subscriptionCache.set(accessCode, { active, checkedAt: Date.now() });
+    return active;
+  } catch {
+    subscriptionCache.set(accessCode, { active: false, checkedAt: Date.now() });
+    return false;
+  }
+}
+
+function enforceUsageLimit(action) {
+  return async (req, res, next) => {
+    const accessCode = req.get('x-access-code');
+    if (await isActiveSubscription(accessCode)) {
+      req.isPro = true;
+      return next();
+    }
+    req.isPro = false;
+    if (checkFreeLimit(req.ip, action)) {
+      return next();
+    }
+    res.status(429).json({
+      error: 'Free daily limit reached. Upgrade to Pro for unlimited translations.',
+      limitReached: true,
+    });
+  };
+}
 
 const EN_TO_HY_PROMPT = `You are an expert English-to-Armenian (Eastern Armenian) translator and grammar checker.
 
@@ -33,7 +94,7 @@ Rules:
 - Respond with ONLY a JSON object, no markdown fences, no extra commentary, matching this exact shape:
 {"translated": "<translated text in English>", "transliteration": "<latin-script phonetic transliteration of the ORIGINAL Armenian input>", "notes": "<optional short note worth flagging, or empty string>"}`;
 
-app.post('/api/translate', async (req, res) => {
+app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
   const { text, direction } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
@@ -71,7 +132,7 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 
-app.post('/api/speak', async (req, res) => {
+app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   const { text } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
@@ -108,6 +169,76 @@ app.post('/api/speak', async (req, res) => {
   } catch (err) {
     console.error('speak error', err);
     res.status(502).json({ error: 'TTS request failed' });
+  }
+});
+
+app.get('/api/check-access', async (req, res) => {
+  const accessCode = req.get('x-access-code');
+  const active = await isActiveSubscription(accessCode);
+  res.json({ active });
+});
+
+app.post('/api/create-checkout-session', async (req, res) => {
+  if (!stripe || !process.env.STRIPE_PRICE_ID) {
+    return res.status(500).json({ error: 'Server is missing STRIPE_SECRET_KEY or STRIPE_PRICE_ID' });
+  }
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: `${PUBLIC_APP_URL}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${PUBLIC_APP_URL}/?checkout=cancel`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('checkout session error', err);
+    res.status(502).json({ error: 'Could not start checkout' });
+  }
+});
+
+app.get('/api/verify-session', async (req, res) => {
+  const sessionId = req.query.session_id;
+  if (!stripe || !sessionId || typeof sessionId !== 'string') {
+    return res.status(400).json({ active: false });
+  }
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription'],
+    });
+    const subscription = session.subscription;
+    const active = subscription && (subscription.status === 'active' || subscription.status === 'trialing');
+    if (!active) return res.json({ active: false });
+    subscriptionCache.set(subscription.id, { active: true, checkedAt: Date.now() });
+    res.json({ active: true, accessCode: subscription.id });
+  } catch (err) {
+    console.error('verify session error', err);
+    res.status(502).json({ active: false });
+  }
+});
+
+app.post('/api/restore-access', async (req, res) => {
+  const { email } = req.body ?? {};
+  if (!stripe || !email || typeof email !== 'string') {
+    return res.status(400).json({ active: false });
+  }
+  try {
+    const customers = await stripe.customers.list({ email, limit: 1 });
+    const customer = customers.data[0];
+    if (!customer) return res.json({ active: false });
+
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: 'active',
+      limit: 1,
+    });
+    const subscription = subscriptions.data[0];
+    if (!subscription) return res.json({ active: false });
+
+    subscriptionCache.set(subscription.id, { active: true, checkedAt: Date.now() });
+    res.json({ active: true, accessCode: subscription.id });
+  } catch (err) {
+    console.error('restore access error', err);
+    res.status(502).json({ active: false });
   }
 });
 
