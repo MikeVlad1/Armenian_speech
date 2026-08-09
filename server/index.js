@@ -192,7 +192,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     console.error('checkout session error', err);
-    res.status(502).json({ error: 'Could not start checkout' });
+    res.status(502).json({ error: err.message || 'Could not start checkout' });
   }
 });
 

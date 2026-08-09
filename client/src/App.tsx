@@ -267,9 +267,9 @@ function App() {
     aria-label={theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'}
     title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
   >
-    <img 
-      src={theme === 'dark' ? pomImg:aprImg}
-      alt={theme === 'dark' ? 'Apricot' : 'Pomegranate'} 
+    <img
+      src={theme === 'dark' ? pomImg : aprImg}
+      alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
       className="theme-icon-img"
     />
   </button>
