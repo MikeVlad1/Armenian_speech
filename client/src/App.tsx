@@ -44,6 +44,29 @@ function loadTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function parseStreamBuffer(buffer: string): TranslateResult {
+  const armIdx = buffer.indexOf('[ARMENIAN]')
+  const translitIdx = buffer.indexOf('[TRANSLITERATION]')
+  const notesIdx = buffer.indexOf('[NOTES]')
+
+  if (armIdx === -1) {
+    // Avoid flashing a partial marker fragment (e.g. "[ARM") as text.
+    const looksLikePartialMarker = buffer.trimStart().startsWith('[')
+    return { translated: looksLikePartialMarker ? '' : buffer.trim(), transliteration: '', notes: '' }
+  }
+
+  const translated = buffer
+    .slice(armIdx + '[ARMENIAN]'.length, translitIdx === -1 ? buffer.length : translitIdx)
+    .trim()
+  const transliteration =
+    translitIdx === -1
+      ? ''
+      : buffer.slice(translitIdx + '[TRANSLITERATION]'.length, notesIdx === -1 ? buffer.length : notesIdx).trim()
+  const notes = notesIdx === -1 ? '' : buffer.slice(notesIdx + '[NOTES]'.length).trim()
+
+  return { translated, transliteration, notes }
+}
+
 function App() {
   const [direction, setDirection] = useState<Direction>('en-hy')
   const [input, setInput] = useState('')
@@ -146,8 +169,26 @@ function App() {
         if (res.status === 429) setLimitReached(true)
         throw new Error(body.error || 'Translation failed')
       }
-      const data: TranslateResult = await res.json()
-      setResult(data)
+
+      const reader = res.body?.getReader()
+      let data: TranslateResult = { translated: '', transliteration: '', notes: '' }
+
+      if (!reader) {
+        // Fallback for environments without a readable stream.
+        data = parseStreamBuffer(await res.text())
+        setResult(data)
+      } else {
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          data = parseStreamBuffer(buffer)
+          setResult({ ...data })
+        }
+      }
+
       setHistory((prev) => [
         { ...data, id: crypto.randomUUID(), direction, input, timestamp: Date.now() },
         ...prev,
@@ -351,10 +392,10 @@ function App() {
             {result.notes && <p className="notes">{result.notes}</p>}
 
             <div className="result-actions">
-              <button className="ghost" onClick={handleSpeak} disabled={speaking || !armenianText.trim()}>
+              <button className="ghost" onClick={handleSpeak} disabled={speaking || loading || !armenianText.trim()}>
                 {speaking ? <span className="spinner dark" /> : '🔊'} Speak
               </button>
-              <button className="ghost" onClick={handleCopy}>
+              <button className="ghost" onClick={handleCopy} disabled={loading}>
                 {copied ? '✓ Copied' : '⧉ Copy'}
               </button>
             </div>
