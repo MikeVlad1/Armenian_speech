@@ -115,8 +115,15 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
 
   const systemPrompt = direction === 'hy-en' ? HY_TO_EN_PROMPT : EN_TO_HY_PROMPT;
 
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
+  // Server-Sent Events — Cloudflare (and proxies generally) recognize this
+  // content type and pass it through unbuffered/uncompressed, unlike a plain
+  // chunked text/plain response, which gets held until complete.
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+  res.write(': connected\n\n');
 
   try {
     const stream = anthropic.messages.stream({
@@ -129,17 +136,19 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
     });
 
     stream.on('text', (delta) => {
-      res.write(delta);
+      res.write(`data: ${JSON.stringify(delta)}\n\n`);
     });
 
     await stream.finalMessage();
+    res.write('event: done\ndata: {}\n\n');
     res.end();
   } catch (err) {
     console.error('translate error', err);
     if (!res.headersSent) {
       res.status(502).json({ error: 'Translation request failed' });
     } else {
-      res.end('\n[STREAM_ERROR]');
+      res.write('event: error\ndata: {}\n\n');
+      res.end();
     }
   }
 });
