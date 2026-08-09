@@ -1,5 +1,5 @@
 {
-  "name": "server",
+  "name": "asa-server",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",

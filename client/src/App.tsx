@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
+import aprImg from './assets/apr.png'
+import pomImg from './assets/pom.png'
+
 
 type Direction = 'en-hy' | 'hy-en'
 
@@ -8,6 +11,8 @@ type TranslateResult = {
   transliteration: string
   notes: string
 }
+
+
 
 type HistoryEntry = TranslateResult & {
   id: string
@@ -19,7 +24,10 @@ type HistoryEntry = TranslateResult & {
 const HISTORY_KEY = 'armenian-speaker-history'
 const HISTORY_LIMIT = 12
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
+const THEME_KEY = 'armenian-speaker-theme'
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+
+type Theme = 'light' | 'dark'
 
 function loadHistory(): HistoryEntry[] {
   try {
@@ -28,6 +36,12 @@ function loadHistory(): HistoryEntry[] {
   } catch {
     return []
   }
+}
+
+function loadTheme(): Theme {
+  const stored = localStorage.getItem(THEME_KEY)
+  if (stored === 'light' || stored === 'dark') return stored
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 function App() {
@@ -46,11 +60,21 @@ function App() {
   const [showRestore, setShowRestore] = useState(false)
   const [restoreEmail, setRestoreEmail] = useState('')
   const [restoring, setRestoring] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() => loadTheme())
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
   }, [history])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem(THEME_KEY, theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -237,9 +261,21 @@ function App() {
     <div className="page">
       <div className="app">
         <header>
-          <h1>Armenian Speaker</h1>
-          <p className="subtitle">Translate and hear Eastern Armenian, spoken aloud</p>
-        </header>
+  <button
+    className="theme-toggle"
+    onClick={toggleTheme}
+    aria-label={theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'}
+    title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
+  >
+    <img 
+      src={theme === 'dark' ? pomImg:aprImg}
+      alt={theme === 'dark' ? 'Apricot' : 'Pomegranate'} 
+      className="theme-icon-img"
+    />
+  </button>
+  <h1>ASA</h1>
+  <p className="subtitle">Ասա — Armenian for "say." Translate and hear Eastern Armenian.</p>
+</header>
 
         <div className="plan-bar">
           {isPro ? (
@@ -350,5 +386,7 @@ function App() {
     </div>
   )
 }
+
+
 
 export default App
