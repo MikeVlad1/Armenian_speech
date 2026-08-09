@@ -109,6 +109,8 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-5',
       max_tokens: 1024,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
       system: systemPrompt,
       messages: [{ role: 'user', content: text }],
     });
