@@ -9,6 +9,10 @@ app.set('trust proxy', 1);
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true }));
 app.use(express.json({ limit: '1mb' }));
 
+app.get('/health', (req, res) => {
+  res.json({ ok: true });
+});
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
