@@ -463,6 +463,14 @@ function App() {
         )}
 
         <audio ref={audioRef} />
+
+        <footer className="give-back">
+          🇦🇲 15% of every ASA Pro subscription is donated to{' '}
+          <a href="https://birthrightarmenia.org" target="_blank" rel="noopener noreferrer">
+            Birthright Armenia
+          </a>
+          , a nonprofit connecting diaspora Armenian youth with their homeland through volunteer service.
+        </footer>
       </div>
     </div>
   )

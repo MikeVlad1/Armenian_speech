@@ -487,3 +487,23 @@ button:disabled {
   text-overflow: ellipsis;
   flex: 1;
 }
+
+.give-back {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.give-back a {
+  color: var(--accent-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.give-back a:hover {
+  text-decoration: underline;
+}
