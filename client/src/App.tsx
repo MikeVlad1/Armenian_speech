@@ -44,69 +44,6 @@ function loadTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-// Parses our server's Server-Sent Events framing (event:/data: lines
-// separated by blank lines) and invokes onDelta with each decoded text chunk.
-async function readSseStream(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  onDelta: (text: string) => void,
-): Promise<'done' | 'error'> {
-  const decoder = new TextDecoder()
-  let sseBuffer = ''
-  let outcome: 'done' | 'error' = 'done'
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    sseBuffer += decoder.decode(value, { stream: true })
-
-    let idx: number
-    while ((idx = sseBuffer.indexOf('\n\n')) !== -1) {
-      const block = sseBuffer.slice(0, idx)
-      sseBuffer = sseBuffer.slice(idx + 2)
-      const lines = block.split('\n')
-      const eventType = lines.find((l) => l.startsWith('event: '))?.slice('event: '.length)
-      const dataLine = lines.find((l) => l.startsWith('data: '))
-
-      if (eventType === 'error') {
-        outcome = 'error'
-      } else if (eventType === 'done') {
-        // no-op — { } marker payload, not translation text
-      } else if (dataLine) {
-        try {
-          onDelta(JSON.parse(dataLine.slice('data: '.length)))
-        } catch {
-          // ignore malformed SSE line
-        }
-      }
-    }
-  }
-
-  return outcome
-}
-
-function parseStreamBuffer(buffer: string): TranslateResult {
-  const armIdx = buffer.indexOf('[ARMENIAN]')
-  const translitIdx = buffer.indexOf('[TRANSLITERATION]')
-  const notesIdx = buffer.indexOf('[NOTES]')
-
-  if (armIdx === -1) {
-    // Avoid flashing a partial marker fragment (e.g. "[ARM") as text.
-    const looksLikePartialMarker = buffer.trimStart().startsWith('[')
-    return { translated: looksLikePartialMarker ? '' : buffer.trim(), transliteration: '', notes: '' }
-  }
-
-  const translated = buffer
-    .slice(armIdx + '[ARMENIAN]'.length, translitIdx === -1 ? buffer.length : translitIdx)
-    .trim()
-  const transliteration =
-    translitIdx === -1
-      ? ''
-      : buffer.slice(translitIdx + '[TRANSLITERATION]'.length, notesIdx === -1 ? buffer.length : notesIdx).trim()
-  const notes = notesIdx === -1 ? '' : buffer.slice(notesIdx + '[NOTES]'.length).trim()
-
-  return { translated, transliteration, notes }
-}
-
 function App() {
   const [direction, setDirection] = useState<Direction>('en-hy')
   const [input, setInput] = useState('')
@@ -210,24 +147,8 @@ function App() {
         throw new Error(body.error || 'Translation failed')
       }
 
-      const reader = res.body?.getReader()
-      let data: TranslateResult = { translated: '', transliteration: '', notes: '' }
-      let textBuffer = ''
-
-      if (!reader) {
-        // Fallback for environments without a readable stream.
-        data = parseStreamBuffer(await res.text())
-        setResult(data)
-      } else {
-        const outcome = await readSseStream(reader, (delta) => {
-          textBuffer += delta
-          data = parseStreamBuffer(textBuffer)
-          setResult({ ...data })
-        })
-        if (outcome === 'error' && !textBuffer.trim()) {
-          throw new Error('Translation failed')
-        }
-      }
+      const data: TranslateResult = await res.json()
+      setResult(data)
 
       setHistory((prev) => [
         { ...data, id: crypto.randomUUID(), direction, input, timestamp: Date.now() },

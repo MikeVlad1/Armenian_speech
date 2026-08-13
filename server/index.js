@@ -85,13 +85,8 @@ Rules:
 - Produce natural, everyday Armenian a native speaker would actually use, not a stiff literal translation.
 - Apply correct Armenian case, verb conjugation, and word order — do not just substitute words one-for-one from English.
 - If the English input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
-- Respond in EXACTLY this format, with no extra commentary before, after, or between sections:
-[ARMENIAN]
-<translated text in Armenian script>
-[TRANSLITERATION]
-<latin-script phonetic transliteration of the Armenian>
-[NOTES]
-<optional short note on any grammar choice worth flagging, or leave this section blank>`;
+- "transliteration" is a latin-script phonetic rendering of the Armenian translation.
+- "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting.`;
 
 const HY_TO_EN_PROMPT = `You are an expert Armenian (Eastern Armenian)-to-English translator.
 
@@ -100,13 +95,19 @@ Translate the user's Armenian text (given in Armenian script) into natural, flue
 Rules:
 - Produce natural English a native speaker would actually use, not a stiff literal translation.
 - If the Armenian input is ambiguous, choose the most common/neutral interpretation.
-- Respond in EXACTLY this format, with no extra commentary before, after, or between sections:
-[ARMENIAN]
-<translated text in English>
-[TRANSLITERATION]
-<latin-script phonetic transliteration of the ORIGINAL Armenian input>
-[NOTES]
-<optional short note worth flagging, or leave this section blank>`;
+- "transliteration" is a latin-script phonetic rendering of the ORIGINAL Armenian input.
+- "notes" is a short note worth flagging, or an empty string if there's nothing worth noting.`;
+
+const TRANSLATION_SCHEMA = {
+  type: 'object',
+  properties: {
+    translated: { type: 'string' },
+    transliteration: { type: 'string' },
+    notes: { type: 'string' },
+  },
+  required: ['translated', 'transliteration', 'notes'],
+  additionalProperties: false,
+};
 
 app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
   const { text, direction } = req.body ?? {};
@@ -119,41 +120,27 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
 
   const systemPrompt = direction === 'hy-en' ? HY_TO_EN_PROMPT : EN_TO_HY_PROMPT;
 
-  // Server-Sent Events — Cloudflare (and proxies generally) recognize this
-  // content type and pass it through unbuffered/uncompressed, unlike a plain
-  // chunked text/plain response, which gets held until complete.
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders?.();
-  res.write(': connected\n\n');
-
   try {
-    const stream = anthropic.messages.stream({
+    const message = await anthropic.messages.create({
       model: 'claude-sonnet-5',
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
-      output_config: { effort: 'low' },
+      output_config: {
+        effort: 'low',
+        format: { type: 'json_schema', schema: TRANSLATION_SCHEMA },
+      },
       system: systemPrompt,
       messages: [{ role: 'user', content: text }],
     });
 
-    stream.on('text', (delta) => {
-      res.write(`data: ${JSON.stringify(delta)}\n\n`);
-    });
-
-    await stream.finalMessage();
-    res.write('event: done\ndata: {}\n\n');
-    res.end();
+    const textBlock = message.content.find((block) => block.type === 'text');
+    const parsed = textBlock
+      ? JSON.parse(textBlock.text)
+      : { translated: '', transliteration: '', notes: '' };
+    res.json(parsed);
   } catch (err) {
     console.error('translate error', err);
-    if (!res.headersSent) {
-      res.status(502).json({ error: 'Translation request failed' });
-    } else {
-      res.write('event: error\ndata: {}\n\n');
-      res.end();
-    }
+    res.status(502).json({ error: 'Translation request failed' });
   }
 });
 
