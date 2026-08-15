@@ -18,6 +18,7 @@ export function newCard(
   return {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
+    updatedAt: Date.now(),
     interval: 0,
     repetitions: 0,
     easeFactor: 2.5,
@@ -42,7 +43,7 @@ function clampInterval(days: number): number {
  * by an ease factor that rises on easy answers and falls on hard ones.
  */
 export function schedule(card: Card, grade: Grade, now: number = Date.now()): Card {
-  const next: Card = { ...card }
+  const next: Card = { ...card, updatedAt: now }
   const isLearning = card.learningStep >= 0
 
   if (isLearning) {

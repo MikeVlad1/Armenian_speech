@@ -8,9 +8,26 @@ const INTRA_WORD_MARKS = /[՞՜՛՚]/g
 /** Marks that genuinely separate words or sentences. */
 const SEPARATORS = /[։՝֊«»""''.,!?;:()[\]{}\-–—…]/g
 
+/**
+ * Armenian ligatures are single codepoints that stand for two letters. A phrase
+ * can legitimately be written either way — and speech recognition returns the
+ * ligature form — so both must compare as equal.
+ */
+const LIGATURES: [RegExp, string][] = [
+  [/և/g, 'եւ'],
+  [/ﬓ/g, 'մն'],
+  [/ﬔ/g, 'մե'],
+  [/ﬕ/g, 'մի'],
+  [/ﬖ/g, 'վն'],
+  [/ﬗ/g, 'մխ'],
+]
+
+function expandLigatures(text: string): string {
+  return LIGATURES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text)
+}
+
 export function normalize(text: string): string {
-  return text
-    .toLowerCase()
+  return expandLigatures(text.toLowerCase())
     .replace(INTRA_WORD_MARKS, '')
     .replace(SEPARATORS, ' ')
     .replace(/\s+/g, ' ')

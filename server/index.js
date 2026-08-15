@@ -149,6 +149,26 @@ const VOICES = {
   male: 'hy-AM-HaykNeural',
 };
 
+/**
+ * Azure's Armenian voices render single-codepoint ligatures as silence — "Բարև"
+ * comes out as "bar" because the trailing և (U+0587) is dropped entirely.
+ * Expanding each ligature to its component letters before synthesis fixes the
+ * pronunciation without changing how the text is stored or displayed, where the
+ * ligature is the correct modern orthography.
+ */
+const TTS_LIGATURES = [
+  [/և/g, 'եւ'], // և
+  [/ﬓ/g, 'մն'], // ﬓ
+  [/ﬔ/g, 'մե'], // ﬔ
+  [/ﬕ/g, 'մի'], // ﬕ
+  [/ﬖ/g, 'վն'], // ﬖ
+  [/ﬗ/g, 'մխ'], // ﬗ
+];
+
+function expandLigaturesForSpeech(text) {
+  return TTS_LIGATURES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
+}
+
 app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   const { text, voice, rate } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
@@ -163,7 +183,7 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   const prosodyRate = rate === 'slow' ? '-25%' : '0%';
   const ssml =
     `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hy-AM">` +
-    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(text)}</prosody></voice>` +
+    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(expandLigaturesForSpeech(text))}</prosody></voice>` +
     `</speak>`;
 
   try {

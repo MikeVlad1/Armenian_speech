@@ -21,6 +21,8 @@ export type Card = {
   transliteration: string
   notes: string
   createdAt: number
+  /** Bumped on every edit or review; used to resolve local/remote sync conflicts. */
+  updatedAt: number
   /** Days until next review once graduated. */
   interval: number
   repetitions: number

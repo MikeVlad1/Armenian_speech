@@ -1230,6 +1230,116 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* ---------- Account & backup ---------- */
+
+.account-bar {
+  margin-bottom: 1rem;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+}
+
+.account-spacer {
+  flex: 1;
+}
+
+.account-email {
+  font-weight: 600;
+  color: var(--accent-2);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-status {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 0.35rem 0 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+/* ---------- Armenian keyboard ---------- */
+
+.keyboard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.keyboard-keys {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.25rem;
+}
+
+.keyboard-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+}
+
+.key {
+  padding: 0.45rem 0.2rem;
+  min-width: 2rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.key:hover {
+  border-color: var(--accent-1);
+  background: var(--bg);
+}
+
+.key:active,
+.key.active {
+  color: white;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border-color: transparent;
+}
+
+.key.wide {
+  min-width: 4.2rem;
+  font-size: 0.78rem;
+}
+
+.grade-key {
+  font-size: 0.6rem;
+  opacity: 0.55;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.22rem;
+  line-height: 1.15;
+}
+
+.hint.center {
+  display: block;
+  text-align: center;
+  margin-top: 0.6rem;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 480px) {
@@ -1253,6 +1363,16 @@ button:disabled {
   .library-side {
     align-items: flex-start;
     width: 100%;
+  }
+
+  .keyboard-keys {
+    grid-template-columns: repeat(8, 1fr);
+  }
+
+  .key {
+    min-width: 0;
+    padding: 0.4rem 0.1rem;
+    font-size: 0.88rem;
   }
 }
 

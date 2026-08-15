@@ -3,6 +3,7 @@ import type { Card, Deck } from '../lib/types'
 import { ApiError, transcribe } from '../lib/api'
 import { compareWords, scoreLabel, similarity, type WordComparison } from '../lib/text'
 import { useAudio } from '../lib/useAudio'
+import ArmenianKeyboard from './ArmenianKeyboard'
 
 type Props = {
   accessCode: string | null
@@ -48,6 +49,7 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
   // Listening state
   const [typed, setTyped] = useState('')
   const [listenChecked, setListenChecked] = useState(false)
+  const [showKeyboard, setShowKeyboard] = useState(true)
 
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
@@ -260,10 +262,22 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
                 placeholder="Type the Armenian you heard…"
                 disabled={listenChecked}
               />
+
               {!listenChecked && (
-                <button className="primary" onClick={checkListening} disabled={!typed.trim()}>
-                  Check
-                </button>
+                <>
+                  <button className="link small" onClick={() => setShowKeyboard((v) => !v)}>
+                    {showKeyboard ? 'Hide Armenian keyboard' : '⌨ Show Armenian keyboard'}
+                  </button>
+                  {showKeyboard && (
+                    <ArmenianKeyboard
+                      onInsert={(char) => setTyped((t) => t + char)}
+                      onBackspace={() => setTyped((t) => t.slice(0, -1))}
+                    />
+                  )}
+                  <button className="primary" onClick={checkListening} disabled={!typed.trim()}>
+                    Check
+                  </button>
+                </>
               )}
             </>
           )}

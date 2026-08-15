@@ -33,7 +33,12 @@ export function saveDecks(decks: Deck[]): void {
 }
 
 export function loadCards(): Card[] {
-  return read<Card[]>(CARDS_KEY, [])
+  // Cards saved before sync existed have no updatedAt; treat their creation
+  // time as the last edit so merges compare them sensibly.
+  return read<Card[]>(CARDS_KEY, []).map((card) => ({
+    ...card,
+    updatedAt: card.updatedAt ?? card.createdAt ?? 0,
+  }))
 }
 
 export function saveCards(cards: Card[]): void {

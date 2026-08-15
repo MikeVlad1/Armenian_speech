@@ -8,6 +8,9 @@ import LibraryView from './components/LibraryView'
 import FlashcardsView from './components/FlashcardsView'
 import QuizView from './components/QuizView'
 import PracticeView from './components/PracticeView'
+import AccountBar from './components/AccountBar'
+import { useSync } from './lib/useSync'
+import type { SyncPayload } from './lib/sync'
 
 import type { Card, Deck, Stats } from './lib/types'
 import { newCard, schedule, dueCards, type Grade } from './lib/srs'
@@ -117,7 +120,7 @@ function App() {
   }, [])
 
   const moveCard = useCallback((id: string, deckId: string) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, deckId } : c)))
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, deckId, updatedAt: Date.now() } : c)))
   }, [])
 
   const createDeck = useCallback((name: string): string => {
@@ -139,6 +142,16 @@ function App() {
   const recordAnswer = useCallback((correct: boolean) => {
     setStats((prev) => recordReview(prev, correct))
   }, [])
+
+  const syncData: SyncPayload = useMemo(() => ({ cards, decks, stats }), [cards, decks, stats])
+
+  const applyPayload = useCallback((payload: SyncPayload) => {
+    setCards(payload.cards)
+    setDecks(payload.decks)
+    setStats(payload.stats)
+  }, [])
+
+  const sync = useSync({ data: syncData, onMerged: applyPayload })
 
   async function handleUpgrade() {
     if (upgrading) return
@@ -264,6 +277,8 @@ function App() {
             </button>
           </div>
         )}
+
+        <AccountBar sync={sync} data={syncData} onImport={applyPayload} />
 
         {billingError && <div className="error-banner">{billingError}</div>}
 

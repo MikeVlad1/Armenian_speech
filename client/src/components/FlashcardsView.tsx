@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Card, Deck } from '../lib/types'
 import { dueCards, intervalPreview, isNew, type Grade } from '../lib/srs'
 import { useAudio } from '../lib/useAudio'
@@ -46,6 +46,34 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
     setRevealed(false)
     setReviewed((n) => n + 1)
   }
+
+  // Space reveals, then 1–4 grade — lets a review session run without the mouse.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      if (!current) return
+
+      if (!revealed) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault()
+          setRevealed(true)
+        }
+        return
+      }
+
+      const byKey: Record<string, Grade> = { '1': 'again', '2': 'hard', '3': 'good', '4': 'easy' }
+      const grade = byKey[e.key] ?? (e.key === ' ' || e.key === 'Enter' ? 'good' : undefined)
+      if (grade) {
+        e.preventDefault()
+        handleGrade(grade)
+      }
+    }
+
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, revealed])
 
   const deckOptions = useMemo(
     () =>
@@ -166,19 +194,23 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
                 )}
               </div>
             ) : (
-              <p className="reveal-prompt">Tap to reveal</p>
+              <p className="reveal-prompt">Tap to reveal · or press Space</p>
             )}
           </div>
 
           {revealed && (
-            <div className="grade-row">
-              {GRADES.map(({ grade, label, className }) => (
-                <button key={grade} className={`grade-btn ${className}`} onClick={() => handleGrade(grade)}>
-                  <span className="grade-label">{label}</span>
-                  <span className="grade-interval">{intervalPreview(current, grade)}</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="grade-row">
+                {GRADES.map(({ grade, label, className }, i) => (
+                  <button key={grade} className={`grade-btn ${className}`} onClick={() => handleGrade(grade)}>
+                    <span className="grade-label">{label}</span>
+                    <span className="grade-interval">{intervalPreview(current, grade)}</span>
+                    <span className="grade-key">{i + 1}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="hint center">Press 1–4 to grade, or Space for Good</p>
+            </>
           )}
         </>
       )}
