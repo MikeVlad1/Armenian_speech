@@ -52,9 +52,35 @@ function loadTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/** Matches the .view-out animation duration in App.css. */
+const VIEW_FADE_MS = 160
+
 function App() {
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [tab, setTab] = useState<Tab>('translate')
+  // The nav highlights the new tab immediately, while the panel keeps rendering
+  // the old view until it has faded out — otherwise the content would swap
+  // mid-fade and the transition would read as a flicker.
+  const [renderedTab, setRenderedTab] = useState<Tab>('translate')
+  const [leaving, setLeaving] = useState(false)
+
+  const selectTab = useCallback(
+    (next: Tab) => {
+      if (next === tab) return
+      setTab(next)
+      setLeaving(true)
+    },
+    [tab]
+  )
+
+  useEffect(() => {
+    if (!leaving) return
+    const timer = setTimeout(() => {
+      setRenderedTab(tab)
+      setLeaving(false)
+    }, VIEW_FADE_MS)
+    return () => clearTimeout(timer)
+  }, [leaving, tab])
 
   const [accessCode, setAccessCode] = useState<string | null>(() => localStorage.getItem(ACCESS_CODE_KEY))
   const [isPro, setIsPro] = useState(false)
@@ -207,7 +233,29 @@ function App() {
   return (
     <div className="page">
       <div className="app">
-        <div className="hero">
+        <div className="hero-row">
+          <div className="hero">
+            <header>
+              <h1>ASA</h1>
+              <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
+            </header>
+
+            <div className="stat-strip">
+              <span className="stat">
+                <strong>{streak}</strong> day streak
+              </span>
+              <span className="stat">
+                <strong>{due}</strong> due
+              </span>
+              <span className="stat">
+                <strong>{todayReviews}</strong> today
+              </span>
+              <span className="stat">
+                <strong>{cards.length}</strong> cards
+              </span>
+            </div>
+          </div>
+
           <button
             className="theme-toggle"
             onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -220,26 +268,6 @@ function App() {
               className="theme-icon-img"
             />
           </button>
-
-          <header>
-            <h1>ASA</h1>
-            <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
-          </header>
-
-          <div className="stat-strip">
-            <span className="stat">
-              <strong>{streak}</strong> day streak
-            </span>
-            <span className="stat">
-              <strong>{due}</strong> due
-            </span>
-            <span className="stat">
-              <strong>{todayReviews}</strong> today
-            </span>
-            <span className="stat">
-              <strong>{cards.length}</strong> cards
-            </span>
-          </div>
         </div>
 
         <nav className="tab-bar">
@@ -247,7 +275,7 @@ function App() {
             <button
               key={id}
               className={`tab ${tab === id ? 'active' : ''}`}
-              onClick={() => setTab(id)}
+              onClick={() => selectTab(id)}
               aria-current={tab === id}
             >
               <span className="tab-icon">{icon}</span>
@@ -300,23 +328,28 @@ function App() {
           </div>
         )}
 
-        <main className={`tab-panel ${FOCUS_TABS.has(tab) ? 'focus' : ''}`}>
-          {tab === 'translate' && (
+        <main
+          key={renderedTab}
+          className={`tab-panel ${FOCUS_TABS.has(renderedTab) ? 'focus' : ''} ${
+            leaving ? 'view-out' : 'view-in'
+          }`}
+        >
+          {renderedTab === 'translate' && (
             <TranslateView
               accessCode={accessCode}
               decks={decks}
               dueCount={due}
               onAddCards={addCards}
               onLimitReached={() => setLimitReached(true)}
-              onStudy={() => setTab('flashcards')}
+              onStudy={() => selectTab('flashcards')}
             />
           )}
 
-          {tab === 'flashcards' && (
+          {renderedTab === 'flashcards' && (
             <FlashcardsView accessCode={accessCode} cards={cards} decks={decks} onGrade={gradeCard} />
           )}
 
-          {tab === 'practice' && (
+          {renderedTab === 'practice' && (
             <PracticeView
               accessCode={accessCode}
               cards={cards}
@@ -326,11 +359,11 @@ function App() {
             />
           )}
 
-          {tab === 'quiz' && (
+          {renderedTab === 'quiz' && (
             <QuizView accessCode={accessCode} cards={cards} decks={decks} onAnswer={recordAnswer} />
           )}
 
-          {tab === 'library' && (
+          {renderedTab === 'library' && (
             <LibraryView
               accessCode={accessCode}
               cards={cards}
