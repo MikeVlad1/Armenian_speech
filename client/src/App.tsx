@@ -32,6 +32,12 @@ const THEME_KEY = 'armenian-speaker-theme'
 type Theme = 'light' | 'dark'
 type Tab = 'translate' | 'library' | 'flashcards' | 'quiz' | 'practice'
 
+/**
+ * Single-task views that read better narrow and centred — a flashcard or quiz
+ * question stretched across a wide screen is harder to scan, not easier.
+ */
+const FOCUS_TABS = new Set<Tab>(['flashcards', 'quiz', 'practice'])
+
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'translate', label: 'Translate', icon: '⇄' },
   { id: 'flashcards', label: 'Cards', icon: '🗂' },
@@ -201,7 +207,7 @@ function App() {
   return (
     <div className="page">
       <div className="app">
-        <header>
+        <div className="hero">
           <button
             className="theme-toggle"
             onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -214,23 +220,26 @@ function App() {
               className="theme-icon-img"
             />
           </button>
-          <h1>ASA</h1>
-          <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
-        </header>
 
-        <div className="stat-strip">
-          <span className="stat">
-            <strong>{streak}</strong> day streak
-          </span>
-          <span className="stat">
-            <strong>{due}</strong> due
-          </span>
-          <span className="stat">
-            <strong>{todayReviews}</strong> today
-          </span>
-          <span className="stat">
-            <strong>{cards.length}</strong> cards
-          </span>
+          <header>
+            <h1>ASA</h1>
+            <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
+          </header>
+
+          <div className="stat-strip">
+            <span className="stat">
+              <strong>{streak}</strong> day streak
+            </span>
+            <span className="stat">
+              <strong>{due}</strong> due
+            </span>
+            <span className="stat">
+              <strong>{todayReviews}</strong> today
+            </span>
+            <span className="stat">
+              <strong>{cards.length}</strong> cards
+            </span>
+          </div>
         </div>
 
         <nav className="tab-bar">
@@ -291,13 +300,15 @@ function App() {
           </div>
         )}
 
-        <main className="tab-panel">
+        <main className={`tab-panel ${FOCUS_TABS.has(tab) ? 'focus' : ''}`}>
           {tab === 'translate' && (
             <TranslateView
               accessCode={accessCode}
               decks={decks}
+              dueCount={due}
               onAddCards={addCards}
               onLimitReached={() => setLimitReached(true)}
+              onStudy={() => setTab('flashcards')}
             />
           )}
 

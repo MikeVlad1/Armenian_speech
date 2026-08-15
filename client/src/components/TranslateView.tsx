@@ -24,8 +24,10 @@ export type NewCardFields = {
 type Props = {
   accessCode: string | null
   decks: Deck[]
+  dueCount: number
   onAddCards: (cards: NewCardFields[], deckId: string) => void
   onLimitReached: () => void
+  onStudy: () => void
 }
 
 function loadHistory(): HistoryEntry[] {
@@ -37,7 +39,14 @@ function loadHistory(): HistoryEntry[] {
   }
 }
 
-export default function TranslateView({ accessCode, decks, onAddCards, onLimitReached }: Props) {
+export default function TranslateView({
+  accessCode,
+  decks,
+  dueCount,
+  onAddCards,
+  onLimitReached,
+  onStudy,
+}: Props) {
   const [direction, setDirection] = useState<Direction>('en-hy')
   const [input, setInput] = useState('')
   const [result, setResult] = useState<TranslateResult | null>(null)
@@ -182,7 +191,8 @@ export default function TranslateView({ accessCode, decks, onAddCards, onLimitRe
   const deckName = decks.find((d) => d.id === MY_PHRASES_DECK_ID)?.name ?? 'My Phrases'
 
   return (
-    <>
+    <div className="layout-split">
+      <div className="layout-main">
       <div className="direction-bar">
         <span className={`lang-pill ${isEnToHy ? 'active' : ''}`}>English</span>
         <button className="swap-btn" onClick={swapDirection} aria-label="Swap direction" title="Swap direction">
@@ -288,25 +298,48 @@ export default function TranslateView({ accessCode, decks, onAddCards, onLimitRe
         </div>
       )}
 
-      {history.length > 0 && (
-        <div className="history">
-          <div className="history-header">
-            <h2>Recent</h2>
-            <button className="link" onClick={() => setHistory([])}>
-              Clear
-            </button>
-          </div>
-          <ul>
-            {history.map((entry) => (
-              <li key={entry.id} onClick={() => restoreEntry(entry)}>
-                <span className="history-input">{entry.input}</span>
-                <span className="history-arrow">→</span>
-                <span className="history-output">{entry.translated}</span>
-              </li>
-            ))}
-          </ul>
+      </div>
+
+      <aside className="layout-side">
+        <div className="card study-nudge">
+          <span className="flashcard-hint">Study</span>
+          {dueCount > 0 ? (
+            <>
+              <p className="nudge-count">
+                <strong>{dueCount}</strong> card{dueCount === 1 ? '' : 's'} due
+              </p>
+              <button className="primary" onClick={onStudy}>
+                Review now
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="nudge-count">All caught up 🎉</p>
+              <p className="empty-note">Save a phrase below to add it to your deck.</p>
+            </>
+          )}
         </div>
-      )}
-    </>
+
+        {history.length > 0 && (
+          <div className="history card">
+            <div className="history-header">
+              <h2>Recent</h2>
+              <button className="link" onClick={() => setHistory([])}>
+                Clear
+              </button>
+            </div>
+            <ul>
+              {history.map((entry) => (
+                <li key={entry.id} onClick={() => restoreEntry(entry)}>
+                  <span className="history-input">{entry.input}</span>
+                  <span className="history-arrow">→</span>
+                  <span className="history-output">{entry.translated}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </aside>
+    </div>
   )
 }
