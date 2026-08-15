@@ -20,7 +20,7 @@ const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
-const FREE_DAILY_LIMITS = { translate: 15, speak: 30 };
+const FREE_DAILY_LIMITS = { translate: 15, speak: 30, transcribe: 20, breakdown: 10 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SUBSCRIPTION_CACHE_MS = 5 * 60 * 1000;
 
@@ -144,8 +144,13 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
   }
 });
 
+const VOICES = {
+  female: 'hy-AM-AnahitNeural',
+  male: 'hy-AM-HaykNeural',
+};
+
 app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
-  const { text } = req.body ?? {};
+  const { text, voice, rate } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
@@ -153,7 +158,13 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
     return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
   }
 
-  const ssml = `<speak version="1.0" xml:lang="hy-AM"><voice name="hy-AM-AnahitNeural">${escapeXml(text)}</voice></speak>`;
+  const voiceName = VOICES[voice] || VOICES.female;
+  // Slow playback helps learners catch individual sounds.
+  const prosodyRate = rate === 'slow' ? '-25%' : '0%';
+  const ssml =
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hy-AM">` +
+    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(text)}</prosody></voice>` +
+    `</speak>`;
 
   try {
     const ttsRes = await fetch(
@@ -181,6 +192,111 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   } catch (err) {
     console.error('speak error', err);
     res.status(502).json({ error: 'TTS request failed' });
+  }
+});
+
+// Speech-to-text for pronunciation practice. The browser sends a raw audio
+// blob (webm/opus from MediaRecorder); Azure's short-audio REST endpoint
+// accepts that container directly, so we forward the bytes as-is.
+app.post(
+  '/api/transcribe',
+  express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }),
+  enforceUsageLimit('transcribe'),
+  async (req, res) => {
+    if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+      return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
+    }
+    if (!req.body || !req.body.length) {
+      return res.status(400).json({ error: 'audio body is required' });
+    }
+
+    const contentType = req.get('content-type') || 'audio/webm; codecs=opus';
+
+    try {
+      const sttRes = await fetch(
+        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=hy-AM&format=detailed`,
+        {
+          method: 'POST',
+          headers: {
+            'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+            'Content-Type': contentType,
+            Accept: 'application/json',
+          },
+          body: req.body,
+        }
+      );
+
+      if (!sttRes.ok) {
+        const errText = await sttRes.text();
+        console.error('Azure STT error', sttRes.status, errText);
+        return res.status(502).json({ error: 'Transcription failed' });
+      }
+
+      const data = await sttRes.json();
+      // RecognitionStatus is 'Success' | 'NoMatch' | 'InitialSilenceTimeout' | ...
+      if (data.RecognitionStatus !== 'Success') {
+        return res.json({ transcript: '', status: data.RecognitionStatus || 'NoMatch' });
+      }
+
+      res.json({
+        transcript: data.DisplayText || data.NBest?.[0]?.Display || '',
+        status: 'Success',
+      });
+    } catch (err) {
+      console.error('transcribe error', err);
+      res.status(502).json({ error: 'Transcription failed' });
+    }
+  }
+);
+
+const BREAKDOWN_PROMPT = `You are an Eastern Armenian language teacher building vocabulary flashcards.
+
+Given an Armenian phrase, break it into its individual meaningful words (skip trivial particles if they carry no standalone meaning).
+
+For each word return:
+- "armenian": the word as it appears in dictionary/base form where sensible
+- "english": its English meaning
+- "transliteration": latin-script phonetic transliteration
+- "partOfSpeech": one of noun, verb, adjective, adverb, pronoun, preposition, conjunction, particle, phrase
+
+Return between 1 and 12 words. Respond with ONLY a JSON object, no markdown fences, no commentary:
+{"words": [{"armenian": "...", "english": "...", "transliteration": "...", "partOfSpeech": "..."}]}`;
+
+app.post('/api/breakdown', enforceUsageLimit('breakdown'), async (req, res) => {
+  const { text } = req.body ?? {};
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
+  }
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 1024,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
+      system: BREAKDOWN_PROMPT,
+      messages: [{ role: 'user', content: text }],
+    });
+
+    const raw = message.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(502).json({ error: 'Could not parse breakdown' });
+    }
+
+    res.json({ words: Array.isArray(parsed.words) ? parsed.words : [] });
+  } catch (err) {
+    console.error('breakdown error', err);
+    res.status(502).json({ error: 'Breakdown request failed' });
   }
 });
 

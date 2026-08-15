@@ -1,42 +1,41 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import aprImg from './assets/apr.png'
 import pomImg from './assets/pom.png'
 
+import TranslateView, { type NewCardFields } from './components/TranslateView'
+import LibraryView from './components/LibraryView'
+import FlashcardsView from './components/FlashcardsView'
+import QuizView from './components/QuizView'
+import PracticeView from './components/PracticeView'
 
-type Direction = 'en-hy' | 'hy-en'
+import type { Card, Deck, Stats } from './lib/types'
+import { newCard, schedule, dueCards, type Grade } from './lib/srs'
+import {
+  ensureSeeded,
+  loadStats,
+  saveCards,
+  saveDecks,
+  saveStats,
+  recordReview,
+  currentStreak,
+  todayKey,
+} from './lib/storage'
+import { API_BASE } from './lib/api'
 
-type TranslateResult = {
-  translated: string
-  transliteration: string
-  notes: string
-}
-
-
-
-type HistoryEntry = TranslateResult & {
-  id: string
-  direction: Direction
-  input: string
-  timestamp: number
-}
-
-const HISTORY_KEY = 'armenian-speaker-history'
-const HISTORY_LIMIT = 12
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 type Theme = 'light' | 'dark'
+type Tab = 'translate' | 'library' | 'flashcards' | 'quiz' | 'practice'
 
-function loadHistory(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'translate', label: 'Translate', icon: '⇄' },
+  { id: 'flashcards', label: 'Cards', icon: '🗂' },
+  { id: 'practice', label: 'Practice', icon: '🎙' },
+  { id: 'quiz', label: 'Quiz', icon: '✓' },
+  { id: 'library', label: 'Library', icon: '📚' },
+]
 
 function loadTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
@@ -45,14 +44,9 @@ function loadTheme(): Theme {
 }
 
 function App() {
-  const [direction, setDirection] = useState<Direction>('en-hy')
-  const [input, setInput] = useState('')
-  const [result, setResult] = useState<TranslateResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [speaking, setSpeaking] = useState(false)
-  const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
+  const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [tab, setTab] = useState<Tab>('translate')
+
   const [accessCode, setAccessCode] = useState<string | null>(() => localStorage.getItem(ACCESS_CODE_KEY))
   const [isPro, setIsPro] = useState(false)
   const [limitReached, setLimitReached] = useState(false)
@@ -60,21 +54,21 @@ function App() {
   const [showRestore, setShowRestore] = useState(false)
   const [restoreEmail, setRestoreEmail] = useState('')
   const [restoring, setRestoring] = useState(false)
-  const [theme, setTheme] = useState<Theme>(() => loadTheme())
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [billingError, setBillingError] = useState('')
 
-  useEffect(() => {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
-  }, [history])
+  const seed = useMemo(ensureSeeded, [])
+  const [decks, setDecks] = useState<Deck[]>(seed.decks)
+  const [cards, setCards] = useState<Card[]>(seed.cards)
+  const [stats, setStats] = useState<Stats>(loadStats)
+
+  useEffect(() => saveDecks(decks), [decks])
+  useEffect(() => saveCards(cards), [cards])
+  useEffect(() => saveStats(stats), [stats])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
-
-  function toggleTheme() {
-    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
-  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -95,7 +89,7 @@ function App() {
     }
 
     if (params.get('checkout') === 'success' && sessionId) {
-      finishCheckout(sessionId)
+      void finishCheckout(sessionId)
     } else if (params.get('checkout')) {
       window.history.replaceState({}, '', window.location.pathname)
     } else if (accessCode) {
@@ -114,93 +108,49 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const isEnToHy = direction === 'en-hy'
-  // The Armenian-script text relevant to the current view — used for speech.
-  const armenianText = isEnToHy ? result?.translated ?? '' : input
+  const addCards = useCallback((fields: NewCardFields[], deckId: string) => {
+    setCards((prev) => [...prev, ...fields.map((f) => newCard({ ...f, deckId }))])
+  }, [])
 
-  function swapDirection() {
-    setDirection((d) => (d === 'en-hy' ? 'hy-en' : 'en-hy'))
-    setInput(result?.translated ?? '')
-    setResult(null)
-    setError('')
-  }
+  const deleteCard = useCallback((id: string) => {
+    setCards((prev) => prev.filter((c) => c.id !== id))
+  }, [])
 
-  function authHeaders(): HeadersInit {
-    return accessCode ? { 'x-access-code': accessCode } : {}
-  }
+  const moveCard = useCallback((id: string, deckId: string) => {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, deckId } : c)))
+  }, [])
 
-  async function handleTranslate() {
-    if (!input.trim() || loading) return
-    setLoading(true)
-    setError('')
-    setLimitReached(false)
-    setResult(null)
-    try {
-      const res = await fetch(`${API_BASE}/api/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ text: input, direction }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (res.status === 429) setLimitReached(true)
-        throw new Error(body.error || 'Translation failed')
-      }
+  const createDeck = useCallback((name: string): string => {
+    const deck: Deck = { id: crypto.randomUUID(), name, description: '', builtin: false }
+    setDecks((prev) => [...prev, deck])
+    return deck.id
+  }, [])
 
-      const data: TranslateResult = await res.json()
-      setResult(data)
+  const deleteDeck = useCallback((id: string) => {
+    setDecks((prev) => prev.filter((d) => d.id !== id))
+    setCards((prev) => prev.filter((c) => c.deckId !== id))
+  }, [])
 
-      setHistory((prev) => [
-        { ...data, id: crypto.randomUUID(), direction, input, timestamp: Date.now() },
-        ...prev,
-      ].slice(0, HISTORY_LIMIT))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const gradeCard = useCallback((card: Card, grade: Grade) => {
+    setCards((prev) => prev.map((c) => (c.id === card.id ? schedule(c, grade) : c)))
+    setStats((prev) => recordReview(prev, grade !== 'again'))
+  }, [])
 
-  async function handleSpeak() {
-    if (!armenianText.trim() || speaking) return
-    setSpeaking(true)
-    setError('')
-    setLimitReached(false)
-    try {
-      const res = await fetch(`${API_BASE}/api/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ text: armenianText }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (res.status === 429) setLimitReached(true)
-        throw new Error(body.error || 'Speech request failed')
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      if (audioRef.current) {
-        audioRef.current.src = url
-        await audioRef.current.play()
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setSpeaking(false)
-    }
-  }
+  const recordAnswer = useCallback((correct: boolean) => {
+    setStats((prev) => recordReview(prev, correct))
+  }, [])
 
   async function handleUpgrade() {
     if (upgrading) return
     setUpgrading(true)
-    setError('')
+    setBillingError('')
     try {
       const res = await fetch(`${API_BASE}/api/create-checkout-session`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout')
       window.location.href = data.url
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setBillingError(err instanceof Error ? err.message : 'Something went wrong')
       setUpgrading(false)
     }
   }
@@ -208,7 +158,7 @@ function App() {
   async function handleRestoreAccess() {
     if (!restoreEmail.trim() || restoring) return
     setRestoring(true)
-    setError('')
+    setBillingError('')
     try {
       const res = await fetch(`${API_BASE}/api/restore-access`, {
         method: 'POST',
@@ -222,62 +172,68 @@ function App() {
         setIsPro(true)
         setShowRestore(false)
       } else {
-        setError('No active subscription found for that email.')
+        setBillingError('No active subscription found for that email.')
       }
     } catch {
-      setError('Something went wrong restoring access.')
+      setBillingError('Something went wrong restoring access.')
     } finally {
       setRestoring(false)
     }
   }
 
-  async function handleCopy() {
-    if (!result?.translated) return
-    await navigator.clipboard.writeText(result.translated)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  function restoreEntry(entry: HistoryEntry) {
-    setDirection(entry.direction)
-    setInput(entry.input)
-    setResult({
-      translated: entry.translated,
-      transliteration: entry.transliteration,
-      notes: entry.notes,
-    })
-    setError('')
-  }
-
-  function clearHistory() {
-    setHistory([])
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      handleTranslate()
-    }
-  }
+  const due = useMemo(() => dueCards(cards).length, [cards])
+  const streak = useMemo(() => currentStreak(stats), [stats])
+  const todayReviews = stats.byDay[todayKey()]?.reviews ?? 0
 
   return (
     <div className="page">
       <div className="app">
         <header>
-  <button
-    className="theme-toggle"
-    onClick={toggleTheme}
-    aria-label={theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'}
-    title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
-  >
-    <img
-      src={theme === 'dark' ? pomImg : aprImg}
-      alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
-      className="theme-icon-img"
-    />
-  </button>
-  <h1>ASA</h1>
-  <p className="subtitle">Ասա — Armenian for "say." Translate and hear Eastern Armenian.</p>
-</header>
+          <button
+            className="theme-toggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            aria-label={theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'}
+            title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
+          >
+            <img
+              src={theme === 'dark' ? pomImg : aprImg}
+              alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
+              className="theme-icon-img"
+            />
+          </button>
+          <h1>ASA</h1>
+          <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
+        </header>
+
+        <div className="stat-strip">
+          <span className="stat">
+            <strong>{streak}</strong> day streak
+          </span>
+          <span className="stat">
+            <strong>{due}</strong> due
+          </span>
+          <span className="stat">
+            <strong>{todayReviews}</strong> today
+          </span>
+          <span className="stat">
+            <strong>{cards.length}</strong> cards
+          </span>
+        </div>
+
+        <nav className="tab-bar">
+          {TABS.map(({ id, label, icon }) => (
+            <button
+              key={id}
+              className={`tab ${tab === id ? 'active' : ''}`}
+              onClick={() => setTab(id)}
+              aria-current={tab === id}
+            >
+              <span className="tab-icon">{icon}</span>
+              <span className="tab-label">{label}</span>
+              {id === 'flashcards' && due > 0 && <span className="tab-badge">{due}</span>}
+            </button>
+          ))}
+        </nav>
 
         <div className="plan-bar">
           {isPro ? (
@@ -309,81 +265,58 @@ function App() {
           </div>
         )}
 
-        <div className="direction-bar">
-          <span className={`lang-pill ${isEnToHy ? 'active' : ''}`}>English</span>
-          <button className="swap-btn" onClick={swapDirection} aria-label="Swap direction" title="Swap direction">
-            ⇄
-          </button>
-          <span className={`lang-pill ${!isEnToHy ? 'active' : ''}`}>Armenian</span>
-        </div>
+        {billingError && <div className="error-banner">{billingError}</div>}
 
-        <div className="card">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={isEnToHy ? 'Type an English sentence…' : 'Հայերեն գրիր այստեղ…'}
-            rows={4}
-          />
-
-          <div className="card-footer">
-            <span className="hint">⌘/Ctrl + Enter to translate</span>
-            <button className="primary" onClick={handleTranslate} disabled={loading || !input.trim()}>
-              {loading && <span className="spinner" />}
-              {loading ? 'Translating' : 'Translate'}
+        {limitReached && !isPro && (
+          <div className="error-banner">
+            Free daily limit reached.
+            <button className="upgrade-btn inline" onClick={handleUpgrade} disabled={upgrading}>
+              {upgrading ? 'Redirecting…' : 'Upgrade to Pro'}
             </button>
           </div>
-        </div>
-
-        {error && (
-          <div className="error-banner">
-            {error}
-            {limitReached && (
-              <button className="upgrade-btn inline" onClick={handleUpgrade} disabled={upgrading}>
-                {upgrading ? 'Redirecting…' : 'Upgrade to Pro'}
-              </button>
-            )}
-          </div>
         )}
 
-        {result && (
-          <div className="card result-card">
-            <p className="translated">{result.translated}</p>
-            {result.transliteration && <p className="transliteration">{result.transliteration}</p>}
-            {result.notes && <p className="notes">{result.notes}</p>}
+        <main className="tab-panel">
+          {tab === 'translate' && (
+            <TranslateView
+              accessCode={accessCode}
+              decks={decks}
+              onAddCards={addCards}
+              onLimitReached={() => setLimitReached(true)}
+            />
+          )}
 
-            <div className="result-actions">
-              <button className="ghost" onClick={handleSpeak} disabled={speaking || loading || !armenianText.trim()}>
-                {speaking ? <span className="spinner dark" /> : '🔊'} Speak
-              </button>
-              <button className="ghost" onClick={handleCopy} disabled={loading}>
-                {copied ? '✓ Copied' : '⧉ Copy'}
-              </button>
-            </div>
-          </div>
-        )}
+          {tab === 'flashcards' && (
+            <FlashcardsView accessCode={accessCode} cards={cards} decks={decks} onGrade={gradeCard} />
+          )}
 
-        {history.length > 0 && (
-          <div className="history">
-            <div className="history-header">
-              <h2>Recent</h2>
-              <button className="link" onClick={clearHistory}>
-                Clear
-              </button>
-            </div>
-            <ul>
-              {history.map((entry) => (
-                <li key={entry.id} onClick={() => restoreEntry(entry)}>
-                  <span className="history-input">{entry.input}</span>
-                  <span className="history-arrow">→</span>
-                  <span className="history-output">{entry.translated}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+          {tab === 'practice' && (
+            <PracticeView
+              accessCode={accessCode}
+              cards={cards}
+              decks={decks}
+              onAnswer={recordAnswer}
+              onLimitReached={() => setLimitReached(true)}
+            />
+          )}
 
-        <audio ref={audioRef} />
+          {tab === 'quiz' && (
+            <QuizView accessCode={accessCode} cards={cards} decks={decks} onAnswer={recordAnswer} />
+          )}
+
+          {tab === 'library' && (
+            <LibraryView
+              accessCode={accessCode}
+              cards={cards}
+              decks={decks}
+              onAddCards={addCards}
+              onDeleteCard={deleteCard}
+              onMoveCard={moveCard}
+              onCreateDeck={createDeck}
+              onDeleteDeck={deleteDeck}
+            />
+          )}
+        </main>
 
         <footer className="give-back">
           🇦🇲 15% of every ASA Pro subscription is donated to{' '}
@@ -396,7 +329,5 @@ function App() {
     </div>
   )
 }
-
-
 
 export default App
