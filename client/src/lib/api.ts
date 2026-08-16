@@ -61,6 +61,36 @@ export async function transcribe(
   return res.json()
 }
 
+export type DonationInterval = 'once' | 'month' | 'year'
+
+export type DonationConfig = {
+  enabled: boolean
+  charitySharePercent: number
+  minCents: number
+  maxCents: number
+}
+
+export async function fetchDonationConfig(): Promise<DonationConfig> {
+  const res = await fetch(`${API_BASE}/api/donation-config`)
+  if (!res.ok) await throwForResponse(res, 'Could not load donation options')
+  return res.json()
+}
+
+export async function createDonationSession(
+  amountCents: number,
+  interval: DonationInterval
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/create-donation-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amountCents, interval }),
+  })
+  if (!res.ok) await throwForResponse(res, 'Could not start the donation')
+  const data = await res.json()
+  if (!data.url) throw new ApiError('Could not start the donation')
+  return data.url
+}
+
 export type BreakdownWord = {
   armenian: string
   english: string

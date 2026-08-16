@@ -20,7 +20,19 @@ const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
-const FREE_DAILY_LIMITS = { translate: 15, speak: 30, transcribe: 20, breakdown: 10 };
+const FREE_DAILY_LIMITS = { translate: 15, speak: 30, transcribe: 20, breakdown: 10, donate: 25 };
+
+/**
+ * Share of donation revenue passed on to Armenian charity, with the remainder
+ * covering development and the API bills the app runs on. This number is shown
+ * to donors before they pay, so it is a public commitment — change it here and
+ * in DONATION_CHARITY_SHARE on the client together, never one alone.
+ */
+const CHARITY_SHARE_PERCENT = 50;
+
+const DONATION_MIN_CENTS = 100; // $1
+const DONATION_MAX_CENTS = 500000; // $5,000 — well above any plausible gift
+const DONATION_INTERVALS = { once: null, month: 'month', year: 'year' };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SUBSCRIPTION_CACHE_MS = 5 * 60 * 1000;
 
@@ -460,6 +472,80 @@ app.post('/api/create-checkout-session', async (req, res) => {
   } catch (err) {
     console.error('checkout session error', err);
     res.status(502).json({ error: err.message || 'Could not start checkout' });
+  }
+});
+
+app.get('/api/donation-config', (req, res) => {
+  res.json({
+    enabled: Boolean(stripe),
+    charitySharePercent: CHARITY_SHARE_PERCENT,
+    minCents: DONATION_MIN_CENTS,
+    maxCents: DONATION_MAX_CENTS,
+  });
+});
+
+app.post('/api/create-donation-session', async (req, res) => {
+  // Donations are unauthenticated, so cap session creation per IP. This guards
+  // the endpoint from being hammered; it never blocks a real donor.
+  if (!checkFreeLimit(req.ip, 'donate')) {
+    return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+  }
+
+  const { amountCents, interval } = req.body ?? {};
+
+  // Every amount is validated here rather than trusted from the client, since
+  // the request body is fully attacker-controlled.
+  if (!Number.isInteger(amountCents)) {
+    return res.status(400).json({ error: 'Please enter a valid amount.' });
+  }
+  if (amountCents < DONATION_MIN_CENTS) {
+    return res.status(400).json({ error: `The minimum donation is $${DONATION_MIN_CENTS / 100}.` });
+  }
+  if (amountCents > DONATION_MAX_CENTS) {
+    return res.status(400).json({ error: `The maximum donation is $${DONATION_MAX_CENTS / 100}.` });
+  }
+  if (!Object.prototype.hasOwnProperty.call(DONATION_INTERVALS, interval)) {
+    return res.status(400).json({ error: 'Please choose a valid donation frequency.' });
+  }
+
+  // Checked after validation so a malformed request always gets a precise 400,
+  // and probing this endpoint reveals nothing about server configuration.
+  if (!stripe) {
+    return res.status(500).json({ error: 'Donations are not configured yet.' });
+  }
+
+  const recurring = DONATION_INTERVALS[interval];
+  const amountLabel = `$${(amountCents / 100).toFixed(2)}`;
+  const name = recurring
+    ? `ASA support — ${amountLabel} / ${recurring}`
+    : `ASA one-time support — ${amountLabel}`;
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: recurring ? 'subscription' : 'payment',
+      // Labels the Checkout button "Donate" rather than "Pay"/"Subscribe".
+      submit_type: 'donate',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: amountCents,
+            product_data: {
+              name,
+              description: `${CHARITY_SHARE_PERCENT}% supports Armenian charity; the rest funds development and running costs.`,
+            },
+            ...(recurring ? { recurring: { interval: recurring } } : {}),
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${PUBLIC_APP_URL}/?donation=success`,
+      cancel_url: `${PUBLIC_APP_URL}/?donation=cancel`,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('donation session error', err);
+    res.status(502).json({ error: err.message || 'Could not start the donation.' });
   }
 });
 

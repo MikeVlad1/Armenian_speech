@@ -9,6 +9,7 @@ import FlashcardsView from './components/FlashcardsView'
 import QuizView from './components/QuizView'
 import PracticeView from './components/PracticeView'
 import AccountBar from './components/AccountBar'
+import DonateModal from './components/DonateModal'
 import { useSync } from './lib/useSync'
 import type { SyncPayload } from './lib/sync'
 
@@ -90,6 +91,8 @@ function App() {
   const [restoreEmail, setRestoreEmail] = useState('')
   const [restoring, setRestoring] = useState(false)
   const [billingError, setBillingError] = useState('')
+  const [showDonate, setShowDonate] = useState(false)
+  const [donationThanks, setDonationThanks] = useState(false)
 
   const seed = useMemo(ensureSeeded, [])
   const [decks, setDecks] = useState<Deck[]>(seed.decks)
@@ -121,6 +124,12 @@ function App() {
       } finally {
         window.history.replaceState({}, '', window.location.pathname)
       }
+    }
+
+    const donation = params.get('donation')
+    if (donation) {
+      if (donation === 'success') setDonationThanks(true)
+      window.history.replaceState({}, '', window.location.pathname)
     }
 
     if (params.get('checkout') === 'success' && sessionId) {
@@ -317,6 +326,15 @@ function App() {
 
         <AccountBar sync={sync} data={syncData} onImport={applyPayload} />
 
+        {donationThanks && (
+          <div className="thanks-banner">
+            <span>🇦🇲 Thank you — your support keeps ASA running and free.</span>
+            <button className="link" onClick={() => setDonationThanks(false)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {billingError && <div className="error-banner">{billingError}</div>}
 
         {limitReached && !isPro && (
@@ -378,12 +396,19 @@ function App() {
         </main>
 
         <footer className="give-back">
-          🇦🇲 15% of every ASA Pro subscription is donated to{' '}
-          <a href="https://birthrightarmenia.org" target="_blank" rel="noopener noreferrer">
-            Birthright Armenia
-          </a>
-          , a nonprofit connecting diaspora Armenian youth with their homeland through volunteer service.
+          <p>
+            🇦🇲 15% of every ASA Pro subscription is donated to{' '}
+            <a href="https://birthrightarmenia.org" target="_blank" rel="noopener noreferrer">
+              Birthright Armenia
+            </a>
+            , a nonprofit connecting diaspora Armenian youth with their homeland through volunteer service.
+          </p>
+          <button className="support-btn" onClick={() => setShowDonate(true)}>
+            ♥ Support ASA
+          </button>
         </footer>
+
+        {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
       </div>
     </div>
   )
