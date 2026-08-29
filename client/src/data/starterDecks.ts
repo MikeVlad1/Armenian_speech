@@ -41,7 +41,7 @@ export const STARTER_DECKS: StarterDeck[] = [
   },
   {
     id: 'starter-numbers',
-    name: 'Numbers 1–20',
+    name: 'Numbers 1-20',
     description: 'Counting, prices, times and quantities.',
     cards: [
       { armenian: 'մեկ', english: 'one', transliteration: 'mek' },

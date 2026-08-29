@@ -49,8 +49,8 @@ export default function AccountBar({ sync, data, onImport }: Props) {
       onImport(merged)
       setImportMsg(
         added > 0
-          ? `Restored — added ${added} card${added === 1 ? '' : 's'} (${merged.cards.length} total).`
-          : `Restored — your ${merged.cards.length} cards were already up to date.`
+          ? `Restored - added ${added} card${added === 1 ? '' : 's'} (${merged.cards.length} total).`
+          : `Restored - your ${merged.cards.length} cards were already up to date.`
       )
     } catch {
       setImportMsg('Could not read that file.')

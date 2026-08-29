@@ -25,10 +25,11 @@ const FREE_DAILY_LIMITS = { translate: 15, speak: 30, transcribe: 20, breakdown:
 /**
  * Share of donation revenue passed on to Armenian charity, with the remainder
  * covering development and the API bills the app runs on. This number is shown
- * to donors before they pay, so it is a public commitment — change it here and
- * in DONATION_CHARITY_SHARE on the client together, never one alone.
+ * to donors before they pay, so it is a public commitment. The client fetches
+ * it from /api/donation-config rather than hardcoding a copy, so there is
+ * only ever one number to keep honest.
  */
-const CHARITY_SHARE_PERCENT = 50;
+const CHARITY_SHARE_PERCENT = 15;
 
 const DONATION_MIN_CENTS = 100; // $1
 const DONATION_MAX_CENTS = 500000; // $5,000 — well above any plausible gift
@@ -300,9 +301,17 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   }
 });
 
-// Speech-to-text for pronunciation practice. The browser sends a raw audio
-// blob (webm/opus from MediaRecorder); Azure's short-audio REST endpoint
-// accepts that container directly, so we forward the bytes as-is.
+// Speech-to-text for pronunciation practice. Azure's short-audio REST
+// endpoint only documents two accepted formats - WAV/PCM and OGG/Opus, both
+// at 16kHz mono - and does not accept WebM, which is what MediaRecorder
+// actually produces in most browsers. It doesn't reject a WebM upload
+// outright; it silently misparses the container and can return a confident,
+// complete, but wrong transcription. The client always converts to real
+// 16kHz mono PCM WAV before uploading (see lib/wavEncode.ts), so the exact
+// content type Azure expects is hardcoded here rather than trusted from the
+// client's header.
+const AZURE_STT_CONTENT_TYPE = 'audio/wav; codecs=audio/pcm; samplerate=16000';
+
 app.post(
   '/api/transcribe',
   express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }),
@@ -315,8 +324,6 @@ app.post(
       return res.status(400).json({ error: 'audio body is required' });
     }
 
-    const contentType = req.get('content-type') || 'audio/webm; codecs=opus';
-
     try {
       const sttRes = await fetch(
         `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=hy-AM&format=detailed`,
@@ -324,7 +331,7 @@ app.post(
           method: 'POST',
           headers: {
             'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-            'Content-Type': contentType,
+            'Content-Type': AZURE_STT_CONTENT_TYPE,
             Accept: 'application/json',
           },
           body: req.body,
@@ -517,8 +524,8 @@ app.post('/api/create-donation-session', async (req, res) => {
   const recurring = DONATION_INTERVALS[interval];
   const amountLabel = `$${(amountCents / 100).toFixed(2)}`;
   const name = recurring
-    ? `ASA support — ${amountLabel} / ${recurring}`
-    : `ASA one-time support — ${amountLabel}`;
+    ? `ASA support - ${amountLabel} / ${recurring}`
+    : `ASA one-time support - ${amountLabel}`;
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -566,6 +573,33 @@ app.get('/api/verify-session', async (req, res) => {
   } catch (err) {
     console.error('verify session error', err);
     res.status(502).json({ active: false });
+  }
+});
+
+app.post('/api/cancel-subscription', async (req, res) => {
+  const accessCode = req.get('x-access-code');
+  if (!stripe || !accessCode) {
+    return res.status(400).json({ error: 'No active subscription to cancel.' });
+  }
+  try {
+    const subscription = await stripe.subscriptions.update(accessCode, { cancel_at_period_end: true });
+    // Cache is per access code and this changes what that code means going
+    // forward (still active, but ending) — drop it so the next status check
+    // re-fetches rather than serving a stale pre-cancellation verdict.
+    subscriptionCache.delete(accessCode);
+
+    // current_period_end moved from the subscription itself to its first
+    // item as of the 2025-03-31+ API versions; fall back to the old top-level
+    // field for accounts still pinned to an earlier version.
+    const periodEndSeconds =
+      subscription.items?.data?.[0]?.current_period_end ?? subscription.current_period_end ?? null;
+    res.json({
+      canceled: true,
+      periodEnd: periodEndSeconds ? periodEndSeconds * 1000 : null,
+    });
+  } catch (err) {
+    console.error('cancel subscription error', err);
+    res.status(502).json({ error: 'Could not cancel the subscription.' });
   }
 });
 

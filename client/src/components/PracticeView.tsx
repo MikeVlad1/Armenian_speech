@@ -3,6 +3,7 @@ import type { Card, Deck } from '../lib/types'
 import { ApiError, transcribe } from '../lib/api'
 import { compareWords, scoreLabel, similarity, type WordComparison } from '../lib/text'
 import { useAudio } from '../lib/useAudio'
+import { encodeWav16kMono } from '../lib/wavEncode'
 import ArmenianKeyboard from './ArmenianKeyboard'
 
 type Props = {
@@ -15,7 +16,11 @@ type Props = {
 
 type Mode = 'speaking' | 'listening'
 
-/** Azure's short-audio REST endpoint accepts Opus in WebM or Ogg containers. */
+/**
+ * Recording format doesn't need to match what Azure accepts - checkRecording
+ * converts to WAV before upload (see lib/wavEncode.ts) - so this just picks
+ * whatever the browser itself can record.
+ */
 const PREFERRED_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
 
 function pickMimeType(): string | null {
@@ -130,14 +135,21 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
     if (!current) return
     setChecking(true)
     try {
-      const { transcript: heard, status } = await transcribe(blob, accessCode)
+      let wav: Blob
+      try {
+        wav = await encodeWav16kMono(blob)
+      } catch {
+        setError('Could not process that recording. Please try again.')
+        return
+      }
+      const { transcript: heard, status } = await transcribe(wav, accessCode)
       if (!heard) {
         setTranscript('')
         setScore(0)
         setWordResults([])
         setError(
           status === 'InitialSilenceTimeout'
-            ? "We didn't hear anything — try again a little louder."
+            ? "We didn't hear anything - try again a little louder."
             : "We couldn't make out any Armenian in that recording. Try again."
         )
         return

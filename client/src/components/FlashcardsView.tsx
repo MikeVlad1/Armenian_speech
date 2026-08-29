@@ -209,7 +209,7 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
                   </button>
                 ))}
               </div>
-              <p className="hint center">Press 1–4 to grade, or Space for Good</p>
+              <p className="hint center">Press 1-4 to grade, or Space for Good</p>
             </>
           )}
         </>

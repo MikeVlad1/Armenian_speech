@@ -25,7 +25,7 @@ import {
   currentStreak,
   todayKey,
 } from './lib/storage'
-import { API_BASE } from './lib/api'
+import { API_BASE, ApiError, cancelSubscription } from './lib/api'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
@@ -91,6 +91,10 @@ function App() {
   const [restoreEmail, setRestoreEmail] = useState('')
   const [restoring, setRestoring] = useState(false)
   const [billingError, setBillingError] = useState('')
+  const [planMenuOpen, setPlanMenuOpen] = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
+  const [canceling, setCanceling] = useState(false)
+  const [cancelEndsOn, setCancelEndsOn] = useState<string | null>(null)
   const [showDonate, setShowDonate] = useState(false)
   const [donationThanks, setDonationThanks] = useState(false)
 
@@ -235,6 +239,47 @@ function App() {
     }
   }
 
+  async function handleCancelSubscription() {
+    if (!accessCode || canceling) return
+    setCanceling(true)
+    setBillingError('')
+    try {
+      const result = await cancelSubscription(accessCode)
+      // The subscription stays active (isPro unaffected) until the period
+      // Stripe already billed for actually runs out — cancel_at_period_end
+      // doesn't revoke access early, it just stops the next renewal.
+      setCancelEndsOn(
+        result.periodEnd
+          ? new Date(result.periodEnd).toLocaleDateString(undefined, {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            })
+          : 'the end of your current billing period'
+      )
+      setCancelConfirm(false)
+      setPlanMenuOpen(false)
+    } catch (err) {
+      setBillingError(err instanceof ApiError ? err.message : 'Could not cancel the subscription.')
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  // Closes the plan dropdown on any click outside it, and resets the
+  // cancel-confirm step so reopening the menu doesn't jump straight back in.
+  useEffect(() => {
+    if (!planMenuOpen) return
+    function onClick(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest('.plan-dropdown')) {
+        setPlanMenuOpen(false)
+        setCancelConfirm(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [planMenuOpen])
+
   const due = useMemo(() => dueCards(cards).length, [cards])
   const streak = useMemo(() => currentStreak(stats), [stats])
   const todayReviews = stats.byDay[todayKey()]?.reviews ?? 0
@@ -242,41 +287,42 @@ function App() {
   return (
     <div className="page">
       <div className="app">
-        <div className="hero-row">
-          <div className="hero">
-            <header>
+        <div className="hero">
+          <header>
+            <div className="brand-row">
               <h1>ASA</h1>
-              <p className="subtitle">Ասա — Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
-            </header>
-
-            <div className="stat-strip">
-              <span className="stat">
-                <strong>{streak}</strong> day streak
-              </span>
-              <span className="stat">
-                <strong>{due}</strong> due
-              </span>
-              <span className="stat">
-                <strong>{todayReviews}</strong> today
-              </span>
-              <span className="stat">
-                <strong>{cards.length}</strong> cards
-              </span>
+              <button
+                className="theme-toggle"
+                onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                aria-label={
+                  theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'
+                }
+                title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
+              >
+                <img
+                  src={theme === 'dark' ? pomImg : aprImg}
+                  alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
+                  className="theme-icon-img"
+                />
+              </button>
             </div>
-          </div>
+            <p className="subtitle">Ասա - Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
+          </header>
 
-          <button
-            className="theme-toggle"
-            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-            aria-label={theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'}
-            title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
-          >
-            <img
-              src={theme === 'dark' ? pomImg : aprImg}
-              alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
-              className="theme-icon-img"
-            />
-          </button>
+          <div className="stat-strip">
+            <span className="stat">
+              <strong>{streak}</strong> day streak
+            </span>
+            <span className="stat">
+              <strong>{due}</strong> due
+            </span>
+            <span className="stat">
+              <strong>{todayReviews}</strong> today
+            </span>
+            <span className="stat">
+              <strong>{cards.length}</strong> cards
+            </span>
+          </div>
         </div>
 
         <nav className="tab-bar">
@@ -295,20 +341,69 @@ function App() {
         </nav>
 
         <div className="plan-bar">
-          {isPro ? (
-            <span className="plan-badge pro">✓ Pro — unlimited</span>
-          ) : (
-            <>
-              <span className="plan-badge">Free plan — 15 translations/day</span>
-              <button className="upgrade-btn" onClick={handleUpgrade} disabled={upgrading}>
-                {upgrading ? 'Redirecting…' : 'Upgrade to Pro — $3.99/mo'}
-              </button>
-              <button className="link small" onClick={() => setShowRestore((v) => !v)}>
-                Already subscribed?
-              </button>
-            </>
+          {!isPro && <span className="plan-badge">Free plan - 15 translations/day</span>}
+
+          <div className="plan-dropdown">
+            <button
+              className={`plan-trigger ${isPro ? 'pro' : ''}`}
+              onClick={() => setPlanMenuOpen((v) => !v)}
+              aria-expanded={planMenuOpen}
+            >
+              {isPro ? '✓ Pro - unlimited' : upgrading ? 'Redirecting…' : 'Upgrade to Pro - $3.99/mo'}
+              <span className="dropdown-arrow">▾</span>
+            </button>
+
+            {planMenuOpen && (
+              <div className="plan-menu">
+                {isPro ? (
+                  cancelConfirm ? (
+                    <div className="plan-menu-confirm">
+                      <p>You'll keep Pro until the end of your current billing period.</p>
+                      <div className="plan-menu-actions">
+                        <button className="ghost" onClick={() => setCancelConfirm(false)}>
+                          Never mind
+                        </button>
+                        <button className="danger-btn" onClick={handleCancelSubscription} disabled={canceling}>
+                          {canceling ? 'Canceling…' : 'Yes, cancel'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="plan-menu-item danger" onClick={() => setCancelConfirm(true)}>
+                      Cancel subscription
+                    </button>
+                  )
+                ) : (
+                  <button
+                    className="plan-menu-item"
+                    onClick={() => {
+                      setPlanMenuOpen(false)
+                      void handleUpgrade()
+                    }}
+                    disabled={upgrading}
+                  >
+                    Upgrade to Pro
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {!isPro && (
+            <button className="link small" onClick={() => setShowRestore((v) => !v)}>
+              Already subscribed?
+            </button>
           )}
         </div>
+
+        {cancelEndsOn && (
+          <div className="thanks-banner">
+            <span>Subscription canceled - you'll keep Pro access until {cancelEndsOn}.</span>
+            <button className="link" onClick={() => setCancelEndsOn(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {showRestore && !isPro && (
           <div className="restore-bar">
@@ -328,7 +423,7 @@ function App() {
 
         {donationThanks && (
           <div className="thanks-banner">
-            <span>🇦🇲 Thank you — your support keeps ASA running and free.</span>
+            <span>🇦🇲 Thank you - your support keeps ASA running and free.</span>
             <button className="link" onClick={() => setDonationThanks(false)}>
               Dismiss
             </button>

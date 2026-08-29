@@ -61,6 +61,17 @@ export async function transcribe(
   return res.json()
 }
 
+export async function cancelSubscription(
+  accessCode: string
+): Promise<{ canceled: boolean; periodEnd: number | null }> {
+  const res = await fetch(`${API_BASE}/api/cancel-subscription`, {
+    method: 'POST',
+    headers: { 'x-access-code': accessCode },
+  })
+  if (!res.ok) await throwForResponse(res, 'Could not cancel the subscription')
+  return res.json()
+}
+
 export type DonationInterval = 'once' | 'month' | 'year'
 
 export type DonationConfig = {

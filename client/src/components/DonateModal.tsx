@@ -136,7 +136,7 @@ export default function DonateModal({ onClose }: Props) {
 
         {config && !config.enabled && (
           <div className="error-banner">
-            Donations aren’t set up yet — please check back soon.
+            Donations aren't set up yet - please check back soon.
           </div>
         )}
 
@@ -162,7 +162,7 @@ export default function DonateModal({ onClose }: Props) {
         )}
 
         <p className="modal-fineprint">
-          Payments are handled by Stripe — ASA never sees your card details.
+          Payments are handled by Stripe - ASA never sees your card details.
           {interval !== 'once' && ' You can cancel a recurring donation at any time.'}
         </p>
       </div>
