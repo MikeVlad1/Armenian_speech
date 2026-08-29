@@ -343,20 +343,20 @@ function App() {
         <div className="plan-bar">
           {!isPro && <span className="plan-badge">Free plan - 15 translations/day</span>}
 
-          <div className="plan-dropdown">
-            <button
-              className={`plan-trigger ${isPro ? 'pro' : ''}`}
-              onClick={() => setPlanMenuOpen((v) => !v)}
-              aria-expanded={planMenuOpen}
-            >
-              {isPro ? '✓ Pro - unlimited' : upgrading ? 'Redirecting…' : 'Upgrade to Pro - $3.99/mo'}
-              <span className="dropdown-arrow">▾</span>
-            </button>
+          {isPro ? (
+            <div className="plan-dropdown">
+              <button
+                className="plan-trigger pro"
+                onClick={() => setPlanMenuOpen((v) => !v)}
+                aria-expanded={planMenuOpen}
+              >
+                ✓ Pro - unlimited
+                <span className="dropdown-arrow">▾</span>
+              </button>
 
-            {planMenuOpen && (
-              <div className="plan-menu">
-                {isPro ? (
-                  cancelConfirm ? (
+              {planMenuOpen && (
+                <div className="plan-menu">
+                  {cancelConfirm ? (
                     <div className="plan-menu-confirm">
                       <p>You'll keep Pro until the end of your current billing period.</p>
                       <div className="plan-menu-actions">
@@ -372,22 +372,17 @@ function App() {
                     <button className="plan-menu-item danger" onClick={() => setCancelConfirm(true)}>
                       Cancel subscription
                     </button>
-                  )
-                ) : (
-                  <button
-                    className="plan-menu-item"
-                    onClick={() => {
-                      setPlanMenuOpen(false)
-                      void handleUpgrade()
-                    }}
-                    disabled={upgrading}
-                  >
-                    Upgrade to Pro
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            // Free plan has nothing to pick between yet, so this is a plain
+            // button straight to checkout - no dropdown, no arrow.
+            <button className="plan-trigger" onClick={() => void handleUpgrade()} disabled={upgrading}>
+              {upgrading ? 'Redirecting…' : 'Upgrade to Pro - $3.99/mo'}
+            </button>
+          )}
 
           {!isPro && (
             <button className="link small" onClick={() => setShowRestore((v) => !v)}>
