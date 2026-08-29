@@ -1972,6 +1972,32 @@ button:disabled {
 
 /* ---------- Responsive ---------- */
 
+@media (max-width: 640px) {
+  /* Stack the wordmark above the stats rather than letting them compete for
+     one row - that's what was forcing the stats themselves to wrap. */
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.3rem 1.2rem;
+  }
+
+  .stat-strip {
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 0.4rem;
+  }
+
+  .stat {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.3rem;
+  }
+
+  .stat strong {
+    font-size: 1.05rem;
+  }
+}
+
 @media (max-width: 480px) {
   .page {
     padding: 2rem 0.75rem;
