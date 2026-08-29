@@ -20,7 +20,19 @@ const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
-const FREE_DAILY_LIMITS = { translate: 15, speak: 30, transcribe: 20, breakdown: 10, donate: 25 };
+const FREE_DAILY_LIMITS = {
+  translate: 15,
+  speak: 30,
+  transcribe: 20,
+  breakdown: 10,
+  donate: 25,
+  // restore-access hands out the same reusable access code to anyone who
+  // knows a subscriber's email, with no per-device binding - these two caps
+  // are what actually stops "share my email with the group chat", not the
+  // whole fix (that would mean per-device tokens), but a cheap first line.
+  restoreIp: 10,
+  restoreEmail: 5,
+};
 
 /**
  * Share of donation revenue passed on to Armenian charity, with the remainder
@@ -42,8 +54,8 @@ const SUBSCRIPTION_CACHE_MS = 5 * 60 * 1000;
 const usageByKey = new Map();
 const subscriptionCache = new Map();
 
-function checkFreeLimit(ip, action) {
-  const key = `${ip}:${action}`;
+function checkFreeLimit(subject, action) {
+  const key = `${subject}:${action}`;
   const now = Date.now();
   const entry = usageByKey.get(key);
   if (!entry || now > entry.resetAt) {
@@ -605,9 +617,29 @@ app.post('/api/cancel-subscription', async (req, res) => {
 
 app.post('/api/restore-access', async (req, res) => {
   const { email } = req.body ?? {};
-  if (!stripe || !email || typeof email !== 'string') {
+  if (!email || typeof email !== 'string') {
     return res.status(400).json({ active: false });
   }
+
+  // Rate-limited by IP and by the email itself, checked before the Stripe
+  // config check (so a blocked attempt never depends on it and always costs
+  // nothing) and before any Stripe lookup. IP alone doesn't help - the whole
+  // point of this endpoint is handing the same code to many devices - so the
+  // email-keyed limit is what actually caps how many times one subscription's
+  // access code gets redistributed per day.
+  if (!checkFreeLimit(req.ip, 'restoreIp')) {
+    return res.status(429).json({ active: false, error: 'Too many attempts. Please try again tomorrow.' });
+  }
+  if (!checkFreeLimit(email.trim().toLowerCase(), 'restoreEmail')) {
+    return res
+      .status(429)
+      .json({ active: false, error: 'This email has reached its daily restore limit. Please try again tomorrow.' });
+  }
+
+  if (!stripe) {
+    return res.status(400).json({ active: false });
+  }
+
   try {
     const customers = await stripe.customers.list({ email, limit: 1 });
     const customer = customers.data[0];

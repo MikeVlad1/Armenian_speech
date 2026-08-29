@@ -230,7 +230,7 @@ function App() {
         setIsPro(true)
         setShowRestore(false)
       } else {
-        setBillingError('No active subscription found for that email.')
+        setBillingError(data.error || 'No active subscription found for that email.')
       }
     } catch {
       setBillingError('Something went wrong restoring access.')
