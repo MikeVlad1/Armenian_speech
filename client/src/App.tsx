@@ -493,10 +493,11 @@ function App() {
         <footer className="give-back">
           <p>
             🇦🇲 15% of every ASA Pro subscription is donated to{' '}
-            <a href="https://birthrightarmenia.org" target="_blank" rel="noopener noreferrer">
-              Birthright Armenia
+            <a href="https://agbu.org" target="_blank" rel="noopener noreferrer">
+              the Armenian General Benevolent Union (AGBU)
             </a>
-            , a nonprofit connecting diaspora Armenian youth with their homeland through volunteer service.
+            , the world's largest non-profit Armenian organization, supporting education, culture and humanitarian
+            programs worldwide.
           </p>
           <button className="support-btn" onClick={() => setShowDonate(true)}>
             ♥ Support ASA
