@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://armenian-speaker-client.onrender.com/sitemap.xml
