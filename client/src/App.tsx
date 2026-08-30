@@ -306,7 +306,7 @@ function App() {
                 />
               </button>
             </div>
-            <p className="subtitle">Ասա - Armenian for “say.” Learn, practice and speak Eastern Armenian.</p>
+            <p className="subtitle">Ասա - Armenian for “say.” Translate, hear and practice Eastern Armenian.</p>
           </header>
 
           <div className="stat-strip">
