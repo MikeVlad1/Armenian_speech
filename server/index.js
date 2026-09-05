@@ -118,55 +118,86 @@ You are a translation engine, not an assistant. Never address the user, never as
 If the source is genuinely untranslatable (only digits, punctuation or symbols), set "translated" to an empty string. Never place a request for text, an apology, or any message to the user inside "translated".`;
 
 /**
- * The app only ever pairs one of these with Armenian - it teaches Armenian,
- * it isn't a general translator - so a request names just the other language
- * by its two-letter code and which direction the arrow points.
+ * Every learnable language is always paired with English — English is the
+ * fixed reference language, never itself a learning target. A request names
+ * which language is being learned and which direction the arrow points
+ * (toTarget: English -> that language, or the reverse).
  */
-const LANGUAGES = { en: 'English', es: 'Spanish', fr: 'French', ru: 'Russian' };
+const LANGUAGES = {
+  hy: {
+    name: 'Armenian',
+    nativeName: 'Eastern Armenian',
+    ttsLocale: 'hy-AM',
+    sttLocale: 'hy-AM',
+    voices: { female: 'hy-AM-AnahitNeural', male: 'hy-AM-HaykNeural' },
+    needsKeyboard: true,
+  },
+  es: {
+    name: 'Spanish',
+    nativeName: 'Spanish',
+    ttsLocale: 'es-ES',
+    sttLocale: 'es-ES',
+    voices: { female: 'es-ES-XimenaNeural', male: 'es-ES-AlvaroNeural' },
+    needsKeyboard: false,
+  },
+  fr: {
+    name: 'French',
+    nativeName: 'French',
+    ttsLocale: 'fr-FR',
+    sttLocale: 'fr-FR',
+    voices: { female: 'fr-FR-DeniseNeural', male: 'fr-FR-HenriNeural' },
+    needsKeyboard: false,
+  },
+  ru: {
+    name: 'Russian',
+    nativeName: 'Russian',
+    ttsLocale: 'ru-RU',
+    sttLocale: 'ru-RU',
+    voices: { female: 'ru-RU-SvetlanaNeural', male: 'ru-RU-DmitryNeural' },
+    needsKeyboard: true,
+  },
+};
 
-function buildToArmenianPrompt(otherName) {
-  return `You are an expert ${otherName}-to-Armenian (Eastern Armenian) translator and grammar checker.
+function buildToTargetPrompt(langConfig) {
+  const { name, nativeName } = langConfig;
+  return `You are an expert English-to-${name} (${nativeName}) translator and grammar checker.
 
-Translate the delimited ${otherName} text into natural, grammatically correct Eastern Armenian, using the Armenian script (not transliteration).
+Translate the delimited English text into natural, grammatically correct ${nativeName}, using its native script (not transliteration).
 
 ${SHARED_RULES}
 
 Rules:
-- Produce natural, everyday Armenian a native speaker would actually use, not a stiff literal translation.
-- Apply correct Armenian case, verb conjugation, and word order — do not just substitute words one-for-one from ${otherName}.
-- If the ${otherName} input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
-- "transliteration" is a phonetic rendering of the Armenian translation using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in Armenian, Cyrillic or any other script, and never carry Armenian punctuation across — write "Vortegh", never "Vorte՞ղ".
-- "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting. It must be written in ${otherName} — the reader doesn't know Armenian yet, that's why they're translating into it, so a note in Armenian is unreadable to them. Quoting a specific Armenian word or phrase inline is fine; the explanation around it must still be in ${otherName}.`;
+- Produce natural, everyday ${name} a native speaker would actually use, not a stiff literal translation.
+- Apply correct ${name} case, verb conjugation, and word order — do not just substitute words one-for-one from English.
+- If the English input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
+- "transliteration" is a phonetic rendering of the ${name} translation using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in ${name} script, Cyrillic or any other script, and never carry ${name} punctuation across. If ${name} is already written in the Latin alphabet, set "transliteration" to an empty string — it would just repeat "translated".
+- "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting. It must be written in English — the reader doesn't know ${name} yet, that's why they're translating into it, so a note in ${name} is unreadable to them. Quoting a specific ${name} word or phrase inline is fine; the explanation around it must still be in English.`;
 }
 
-function buildFromArmenianPrompt(otherName) {
-  return `You are an expert Armenian (Eastern Armenian)-to-${otherName} translator.
+function buildFromTargetPrompt(langConfig) {
+  const { name, nativeName } = langConfig;
+  return `You are an expert ${name} (${nativeName})-to-English translator.
 
-Translate the delimited Armenian text (given in Armenian script) into natural, fluent ${otherName}.
+Translate the delimited ${name} text (given in its native script) into natural, fluent English.
 
 ${SHARED_RULES}
 
 Rules:
-- Produce natural ${otherName} a native speaker would actually use, not a stiff literal translation.
-- If the Armenian input is ambiguous, choose the most common/neutral interpretation.
-- "transliteration" is a phonetic rendering of the ORIGINAL Armenian input using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in Armenian, Cyrillic or any other script, and never carry Armenian punctuation across — write "Vortegh", never "Vorte՞ղ".
-- "notes" is a short note worth flagging, or an empty string if there's nothing worth noting. It must be written in ${otherName}, matching "translated" — not Armenian. Quoting a specific Armenian word or phrase from the source inline is fine; the explanation around it must still be in ${otherName}.`;
+- Produce natural English a native speaker would actually use, not a stiff literal translation.
+- If the ${name} input is ambiguous, choose the most common/neutral interpretation.
+- "transliteration" is a phonetic rendering of the ORIGINAL ${name} input using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in ${name} script, Cyrillic or any other script, and never carry ${name} punctuation across. If ${name} is already written in the Latin alphabet, set "transliteration" to an empty string — it would just repeat the source.
+- "notes" is a short note worth flagging, or an empty string if there's nothing worth noting. It must be written in English, matching "translated" — not ${name}. Quoting a specific ${name} word or phrase from the source inline is fine; the explanation around it must still be in English.`;
 }
 
 /**
- * Parses e.g. "es-hy" / "hy-es" into { otherName: "Spanish", toArmenian: true }.
- * Returns null for anything that isn't exactly one of the 8 supported pairs -
+ * Validates { lang, toTarget } from the client. Returns null for anything
+ * that isn't a supported language code paired with a boolean direction -
  * callers must treat null as a 400, not fall back to a default language.
  */
-function parseDirection(direction) {
-  if (typeof direction !== 'string') return null;
-  const toArmenian = direction.endsWith('-hy');
-  const fromArmenian = direction.startsWith('hy-');
-  if (toArmenian === fromArmenian) return null; // exactly one must hold, never both/neither
-  const code = toArmenian ? direction.slice(0, -3) : direction.slice(3);
-  const otherName = LANGUAGES[code];
-  if (!otherName) return null;
-  return { otherName, toArmenian };
+function parseTranslateRequest(lang, toTarget) {
+  const langConfig = LANGUAGES[lang];
+  if (!langConfig || typeof toTarget !== 'boolean') return null;
+  return { langConfig, toTarget };
 }
 
 /** Stops a crafted input from closing the delimiter and escaping the data block. */
@@ -201,21 +232,21 @@ const TRANSLATION_SCHEMA = {
 };
 
 app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
-  const { text, direction } = req.body ?? {};
+  const { text, lang, toTarget } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const parsed = parseDirection(direction);
+  const parsed = parseTranslateRequest(lang, toTarget);
   if (!parsed) {
-    return res.status(400).json({ error: 'Unsupported translation direction' });
+    return res.status(400).json({ error: 'Unsupported translation language' });
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
   }
 
-  const systemPrompt = parsed.toArmenian
-    ? buildToArmenianPrompt(parsed.otherName)
-    : buildFromArmenianPrompt(parsed.otherName);
+  const systemPrompt = parsed.toTarget
+    ? buildToTargetPrompt(parsed.langConfig)
+    : buildFromTargetPrompt(parsed.langConfig);
 
   async function attempt(effort) {
     const message = await anthropic.messages.create({
@@ -275,11 +306,6 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
   }
 });
 
-const VOICES = {
-  female: 'hy-AM-AnahitNeural',
-  male: 'hy-AM-HaykNeural',
-};
-
 /**
  * Azure's Armenian voices render single-codepoint ligatures as silence — "Բարև"
  * comes out as "bar" because the trailing և (U+0587) is dropped entirely.
@@ -301,20 +327,25 @@ function expandLigaturesForSpeech(text) {
 }
 
 app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
-  const { text, voice, rate } = req.body ?? {};
+  const { text, lang, voice, rate } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
+  }
+  const langConfig = LANGUAGES[lang];
+  if (!langConfig) {
+    return res.status(400).json({ error: 'Unsupported language' });
   }
   if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
     return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
   }
 
-  const voiceName = VOICES[voice] || VOICES.female;
+  const voiceName = langConfig.voices[voice] || langConfig.voices.female;
   // Slow playback helps learners catch individual sounds.
   const prosodyRate = rate === 'slow' ? '-25%' : '0%';
+  const speechText = lang === 'hy' ? expandLigaturesForSpeech(text) : text;
   const ssml =
-    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hy-AM">` +
-    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(expandLigaturesForSpeech(text))}</prosody></voice>` +
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langConfig.ttsLocale}">` +
+    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(speechText)}</prosody></voice>` +
     `</speak>`;
 
   try {
@@ -362,6 +393,10 @@ app.post(
   express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }),
   enforceUsageLimit('transcribe'),
   async (req, res) => {
+    const langConfig = LANGUAGES[req.query.lang];
+    if (!langConfig) {
+      return res.status(400).json({ error: 'Unsupported language' });
+    }
     if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
       return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
     }
@@ -371,7 +406,7 @@ app.post(
 
     try {
       const sttRes = await fetch(
-        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=hy-AM&format=detailed`,
+        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${langConfig.sttLocale}&format=detailed`,
         {
           method: 'POST',
           headers: {
@@ -406,19 +441,22 @@ app.post(
   }
 );
 
-const BREAKDOWN_PROMPT = `You are an Eastern Armenian language teacher building vocabulary flashcards.
+function buildBreakdownPrompt(langConfig) {
+  const { name, nativeName } = langConfig;
+  return `You are a ${nativeName} language teacher building vocabulary flashcards.
 
-Break the delimited Armenian phrase into its individual meaningful words (skip trivial particles that carry no standalone meaning).
+Break the delimited ${name} phrase into its individual meaningful words (skip trivial particles that carry no standalone meaning).
 
 ${SHARED_RULES}
 
 For each word return:
-- "armenian": the word in dictionary/base form where sensible
+- "target": the word in dictionary/base form where sensible
 - "english": its English meaning
-- "transliteration": latin-script phonetic transliteration
+- "transliteration": latin-script phonetic transliteration (empty string if ${name} is already written in the Latin alphabet)
 - "partOfSpeech": the word's part of speech
 
 Return at most 12 words. If no meaningful words can be extracted, return an empty array — never a message to the user.`;
+}
 
 const PARTS_OF_SPEECH = [
   'noun',
@@ -440,12 +478,12 @@ const BREAKDOWN_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          armenian: { type: 'string' },
+          target: { type: 'string' },
           english: { type: 'string' },
           transliteration: { type: 'string' },
           partOfSpeech: { type: 'string', enum: PARTS_OF_SPEECH },
         },
-        required: ['armenian', 'english', 'transliteration', 'partOfSpeech'],
+        required: ['target', 'english', 'transliteration', 'partOfSpeech'],
         additionalProperties: false,
       },
     },
@@ -455,9 +493,13 @@ const BREAKDOWN_SCHEMA = {
 };
 
 app.post('/api/breakdown', enforceUsageLimit('breakdown'), async (req, res) => {
-  const { text } = req.body ?? {};
+  const { text, lang } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
+  }
+  const langConfig = LANGUAGES[lang];
+  if (!langConfig) {
+    return res.status(400).json({ error: 'Unsupported language' });
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
@@ -472,7 +514,7 @@ app.post('/api/breakdown', enforceUsageLimit('breakdown'), async (req, res) => {
         effort: 'low',
         format: { type: 'json_schema', schema: BREAKDOWN_SCHEMA },
       },
-      system: BREAKDOWN_PROMPT,
+      system: buildBreakdownPrompt(langConfig),
       messages: [{ role: 'user', content: wrapSource(text) }],
     });
 

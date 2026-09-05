@@ -7,6 +7,33 @@ export type SyncPayload = {
 }
 
 /**
+ * Pre-multi-language records only ever had `armenian`/`english` and no `lang`.
+ * Every card/deck is normalized to the current shape at read time (never at
+ * write time) so this stays idempotent and safe even after a rollback.
+ */
+export function migrateCard(card: Card & { armenian?: string; english?: string }): Card {
+  return {
+    ...card,
+    lang: card.lang ?? 'hy',
+    target: card.target ?? card.armenian ?? '',
+    native: card.native ?? card.english ?? '',
+    updatedAt: card.updatedAt ?? card.createdAt ?? 0,
+  }
+}
+
+export function migrateDeck(deck: Deck): Deck {
+  return { ...deck, lang: deck.lang ?? 'hy' }
+}
+
+export function migratePayload(payload: SyncPayload): SyncPayload {
+  return {
+    cards: payload.cards.map(migrateCard),
+    decks: payload.decks.map(migrateDeck),
+    stats: payload.stats,
+  }
+}
+
+/**
  * Union by id, keeping whichever copy was touched most recently. Cards are the
  * only records that carry meaningful per-field state (scheduling), so this is
  * where conflict resolution actually matters.

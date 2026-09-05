@@ -1,15 +1,17 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { Card, Deck } from '../lib/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Card, Deck, LangCode } from '../lib/types'
+import { LANGUAGES } from '../lib/languages'
 import { useAudio } from '../lib/useAudio'
 
 type Props = {
   accessCode: string | null
+  lang: LangCode
   cards: Card[]
   decks: Deck[]
   onAnswer: (correct: boolean) => void
 }
 
-type QuizDirection = 'hy-en' | 'en-hy'
+type QuizDirection = 'target-native' | 'native-target'
 
 type Question = {
   card: Card
@@ -35,8 +37,8 @@ function buildQuestions(pool: Card[], allCards: Card[], direction: QuizDirection
 
   return selected.map((card) => {
     const dir: QuizDirection =
-      direction === 'mixed' ? (Math.random() < 0.5 ? 'hy-en' : 'en-hy') : direction
-    const valueOf = (c: Card) => (dir === 'hy-en' ? c.english : c.armenian)
+      direction === 'mixed' ? (Math.random() < 0.5 ? 'target-native' : 'native-target') : direction
+    const valueOf = (c: Card) => (dir === 'target-native' ? c.native : c.target)
     const answer = valueOf(card)
 
     // Prefer distractors from the same deck; fall back to the full collection
@@ -56,15 +58,22 @@ function buildQuestions(pool: Card[], allCards: Card[], direction: QuizDirection
   })
 }
 
-export default function QuizView({ accessCode, cards, decks, onAnswer }: Props) {
+export default function QuizView({ accessCode, lang, cards, decks, onAnswer }: Props) {
   const [deckId, setDeckId] = useState('all')
-  const [direction, setDirection] = useState<QuizDirection | 'mixed'>('hy-en')
+  const [direction, setDirection] = useState<QuizDirection | 'mixed'>('target-native')
   const [questions, setQuestions] = useState<Question[] | null>(null)
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState<string | null>(null)
   const [score, setScore] = useState(0)
 
   const audio = useAudio(accessCode)
+
+  // Switching the active learning language mid-quiz would otherwise keep
+  // quizzing the previous language's cards, since nothing else here depends
+  // on `lang` directly.
+  useEffect(() => {
+    setQuestions(null)
+  }, [lang])
 
   const pool = useMemo(
     () => (deckId === 'all' ? cards : cards.filter((c) => c.deckId === deckId)),
@@ -111,8 +120,8 @@ export default function QuizView({ accessCode, cards, decks, onAnswer }: Props) 
         <label className="field">
           <span>Direction</span>
           <select value={direction} onChange={(e) => setDirection(e.target.value as QuizDirection | 'mixed')}>
-            <option value="hy-en">Armenian → English</option>
-            <option value="en-hy">English → Armenian</option>
+            <option value="target-native">{LANGUAGES[lang].name} → English</option>
+            <option value="native-target">English → {LANGUAGES[lang].name}</option>
             <option value="mixed">Mixed</option>
           </select>
         </label>
@@ -146,7 +155,7 @@ export default function QuizView({ accessCode, cards, decks, onAnswer }: Props) 
   }
 
   const question = questions[index]
-  const prompt = question.direction === 'hy-en' ? question.card.armenian : question.card.english
+  const prompt = question.direction === 'target-native' ? question.card.target : question.card.native
   const answered = picked !== null
 
   function choose(option: string) {
@@ -171,12 +180,16 @@ export default function QuizView({ accessCode, cards, decks, onAnswer }: Props) 
 
       <div className="card quiz-card">
         <span className="flashcard-hint">
-          {question.direction === 'hy-en' ? 'What does this mean?' : 'How do you say this?'}
+          {question.direction === 'target-native' ? 'What does this mean?' : 'How do you say this?'}
         </span>
         <p className="flashcard-front">{prompt}</p>
 
-        {question.direction === 'hy-en' && (
-          <button className="ghost" onClick={() => audio.play(question.card.armenian)} disabled={audio.playing}>
+        {question.direction === 'target-native' && (
+          <button
+            className="ghost"
+            onClick={() => audio.play(question.card.target, { lang: question.card.lang })}
+            disabled={audio.playing}
+          >
             {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
           </button>
         )}

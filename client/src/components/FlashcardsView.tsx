@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Card, Deck } from '../lib/types'
+import type { Card, Deck, LangCode } from '../lib/types'
+import { LANGUAGES } from '../lib/languages'
 import { dueCards, intervalPreview, isNew, type Grade } from '../lib/srs'
 import { useAudio } from '../lib/useAudio'
 
 type Props = {
   accessCode: string | null
+  lang: LangCode
   cards: Card[]
   decks: Deck[]
   onGrade: (card: Card, grade: Grade) => void
 }
 
-type CardSide = 'armenian' | 'english'
+type CardSide = 'target' | 'native'
 
 const GRADES: { grade: Grade; label: string; className: string }[] = [
   { grade: 'again', label: 'Again', className: 'again' },
@@ -19,9 +21,9 @@ const GRADES: { grade: Grade; label: string; className: string }[] = [
   { grade: 'easy', label: 'Easy', className: 'easy' },
 ]
 
-export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Props) {
+export default function FlashcardsView({ accessCode, lang, cards, decks, onGrade }: Props) {
   const [deckId, setDeckId] = useState<string>('all')
-  const [front, setFront] = useState<CardSide>('armenian')
+  const [front, setFront] = useState<CardSide>('target')
   const [revealed, setRevealed] = useState(false)
   const [reviewed, setReviewed] = useState(0)
 
@@ -110,22 +112,22 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
 
         <div className="side-toggle">
           <button
-            className={front === 'armenian' ? 'active' : ''}
+            className={front === 'target' ? 'active' : ''}
             onClick={() => {
-              setFront('armenian')
+              setFront('target')
               setRevealed(false)
             }}
           >
-            HY → EN
+            {LANGUAGES[lang].name} → EN
           </button>
           <button
-            className={front === 'english' ? 'active' : ''}
+            className={front === 'native' ? 'active' : ''}
             onClick={() => {
-              setFront('english')
+              setFront('native')
               setRevealed(false)
             }}
           >
-            EN → HY
+            EN → {LANGUAGES[lang].name}
           </button>
         </div>
       </div>
@@ -151,19 +153,19 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
 
           <div className="card flashcard" onClick={() => !revealed && setRevealed(true)}>
             <span className="flashcard-hint">
-              {front === 'armenian' ? 'Armenian' : 'English'}
+              {front === 'target' ? LANGUAGES[lang].name : 'English'}
             </span>
 
             <p className="flashcard-front">
-              {front === 'armenian' ? current.armenian : current.english}
+              {front === 'target' ? current.target : current.native}
             </p>
 
-            {front === 'armenian' && (
+            {front === 'target' && (
               <button
                 className="ghost"
                 onClick={(e) => {
                   e.stopPropagation()
-                  audio.play(current.armenian)
+                  audio.play(current.target, { lang: current.lang })
                 }}
                 disabled={audio.playing}
               >
@@ -174,18 +176,18 @@ export default function FlashcardsView({ accessCode, cards, decks, onGrade }: Pr
             {revealed ? (
               <div className="flashcard-back">
                 <p className="flashcard-answer">
-                  {front === 'armenian' ? current.english : current.armenian}
+                  {front === 'target' ? current.native : current.target}
                 </p>
                 {current.transliteration && (
                   <p className="transliteration">{current.transliteration}</p>
                 )}
                 {current.notes && <p className="notes">{current.notes}</p>}
-                {front === 'english' && (
+                {front === 'native' && (
                   <button
                     className="ghost"
                     onClick={(e) => {
                       e.stopPropagation()
-                      audio.play(current.armenian)
+                      audio.play(current.target, { lang: current.lang })
                     }}
                     disabled={audio.playing}
                   >

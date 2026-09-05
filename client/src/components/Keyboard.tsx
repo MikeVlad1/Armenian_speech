@@ -1,31 +1,14 @@
 import { useState } from 'react'
+import type { KeyboardLayout } from '../data/keyboards'
 
-/** The 38 letters of the Armenian alphabet, plus the և ligature. */
-const LOWER = [
-  'ա', 'բ', 'գ', 'դ', 'ե', 'զ', 'է', 'ը', 'թ', 'ժ',
-  'ի', 'լ', 'խ', 'ծ', 'կ', 'հ', 'ձ', 'ղ', 'ճ', 'մ',
-  'յ', 'ն', 'շ', 'ո', 'չ', 'պ', 'ջ', 'ռ', 'ս', 'վ',
-  'տ', 'ր', 'ց', 'ւ', 'փ', 'ք', 'օ', 'ֆ', 'և',
-]
-
-const UPPER = [
-  'Ա', 'Բ', 'Գ', 'Դ', 'Ե', 'Զ', 'Է', 'Ը', 'Թ', 'Ժ',
-  'Ի', 'Լ', 'Խ', 'Ծ', 'Կ', 'Հ', 'Ձ', 'Ղ', 'Ճ', 'Մ',
-  'Յ', 'Ն', 'Շ', 'Ո', 'Չ', 'Պ', 'Ջ', 'Ռ', 'Ս', 'Վ',
-  'Տ', 'Ր', 'Ց', 'Ւ', 'Փ', 'Ք', 'Օ', 'Ֆ', 'Եւ',
-]
-
-/** Marks a learner can't easily reach: full stop, question, exclamation, emphasis, comma. */
-const MARKS = ['։', '՞', '՜', '՛', '՝', ',']
-
-type Props = {
+type Props = KeyboardLayout & {
   onInsert: (text: string) => void
   onBackspace: () => void
 }
 
-export default function ArmenianKeyboard({ onInsert, onBackspace }: Props) {
+export default function Keyboard({ lower, upper, marks, onInsert, onBackspace }: Props) {
   const [shift, setShift] = useState(false)
-  const letters = shift ? UPPER : LOWER
+  const letters = shift ? upper : lower
 
   function press(char: string) {
     onInsert(char)
@@ -58,7 +41,7 @@ export default function ArmenianKeyboard({ onInsert, onBackspace }: Props) {
         >
           ⇧ Shift
         </button>
-        {MARKS.map((mark) => (
+        {marks.map((mark) => (
           <button key={mark} type="button" className="key" onClick={() => press(mark)} tabIndex={-1}>
             {mark}
           </button>

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Card, Deck } from '../lib/types'
+import type { Card, Deck, LangCode } from '../lib/types'
+import { LANGUAGES } from '../lib/languages'
 import { ApiError, transcribe } from '../lib/api'
 import { compareWords, scoreLabel, similarity, type WordComparison } from '../lib/text'
 import { useAudio } from '../lib/useAudio'
 import { encodeWav16kMono } from '../lib/wavEncode'
-import ArmenianKeyboard from './ArmenianKeyboard'
+import { KEYBOARDS } from '../data/keyboards'
+import Keyboard from './Keyboard'
 
 type Props = {
   accessCode: string | null
+  lang: LangCode
   cards: Card[]
   decks: Deck[]
   onAnswer: (correct: boolean) => void
@@ -37,7 +40,7 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
-export default function PracticeView({ accessCode, cards, decks, onAnswer, onLimitReached }: Props) {
+export default function PracticeView({ accessCode, lang, cards, decks, onAnswer, onLimitReached }: Props) {
   const [mode, setMode] = useState<Mode>('speaking')
   const [deckId, setDeckId] = useState('all')
   const [order, setOrder] = useState<Card[]>([])
@@ -73,7 +76,7 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
     setIndex(0)
     resetAttempt()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool.length, deckId, mode])
+  }, [pool.length, deckId, mode, lang])
 
   useEffect(() => {
     return () => {
@@ -82,6 +85,8 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
   }, [])
 
   const current = order[index]
+  const keyboard = KEYBOARDS[lang]
+  const needsKeyboard = LANGUAGES[lang].needsKeyboard && !!keyboard
 
   function resetAttempt() {
     setTranscript(null)
@@ -142,7 +147,7 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
         setError('Could not process that recording. Please try again.')
         return
       }
-      const { transcript: heard, status } = await transcribe(wav, accessCode)
+      const { transcript: heard, status } = await transcribe(wav, accessCode, lang)
       if (!heard) {
         setTranscript('')
         setScore(0)
@@ -150,14 +155,14 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
         setError(
           status === 'InitialSilenceTimeout'
             ? "We didn't hear anything - try again a little louder."
-            : "We couldn't make out any Armenian in that recording. Try again."
+            : `We couldn't make out any ${LANGUAGES[lang].name} in that recording. Try again.`
         )
         return
       }
-      const pct = similarity(current.armenian, heard)
+      const pct = similarity(current.target, heard, current.lang)
       setTranscript(heard)
       setScore(pct)
-      setWordResults(compareWords(current.armenian, heard))
+      setWordResults(compareWords(current.target, heard, current.lang))
       onAnswer(pct >= 65)
     } catch (err) {
       if (err instanceof ApiError && err.limitReached) onLimitReached()
@@ -169,9 +174,9 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
 
   function checkListening() {
     if (!current) return
-    const pct = similarity(current.armenian, typed)
+    const pct = similarity(current.target, typed, current.lang)
     setScore(pct)
-    setWordResults(compareWords(current.armenian, typed))
+    setWordResults(compareWords(current.target, typed, current.lang))
     setListenChecked(true)
     onAnswer(pct >= 65)
   }
@@ -219,17 +224,21 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
           {mode === 'speaking' ? (
             <>
               <span className="flashcard-hint">Say this out loud</span>
-              <p className="flashcard-front">{current.armenian}</p>
+              <p className="flashcard-front">{current.target}</p>
               {current.transliteration && <p className="transliteration">{current.transliteration}</p>}
-              <p className="notes">{current.english}</p>
+              <p className="notes">{current.native}</p>
 
               <div className="result-actions center">
-                <button className="ghost" onClick={() => audio.play(current.armenian)} disabled={audio.playing}>
+                <button
+                  className="ghost"
+                  onClick={() => audio.play(current.target, { lang: current.lang })}
+                  disabled={audio.playing}
+                >
                   {audio.playing ? <span className="spinner dark" /> : '🔊'} Hear it
                 </button>
                 <button
                   className="ghost"
-                  onClick={() => audio.play(current.armenian, { rate: 'slow' })}
+                  onClick={() => audio.play(current.target, { lang: current.lang, rate: 'slow' })}
                   disabled={audio.playing}
                 >
                   🐢 Slow
@@ -255,12 +264,16 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
           ) : (
             <>
               <span className="flashcard-hint">Listen, then type what you hear</span>
-              <button className="ghost big" onClick={() => audio.play(current.armenian)} disabled={audio.playing}>
+              <button
+                className="ghost big"
+                onClick={() => audio.play(current.target, { lang: current.lang })}
+                disabled={audio.playing}
+              >
                 {audio.playing ? <span className="spinner dark" /> : '🔊'} Play audio
               </button>
               <button
                 className="ghost"
-                onClick={() => audio.play(current.armenian, { rate: 'slow' })}
+                onClick={() => audio.play(current.target, { lang: current.lang, rate: 'slow' })}
                 disabled={audio.playing}
               >
                 🐢 Slower
@@ -271,17 +284,22 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !listenChecked && checkListening()}
-                placeholder="Type the Armenian you heard…"
+                placeholder={`Type the ${LANGUAGES[lang].name} you heard…`}
                 disabled={listenChecked}
               />
 
               {!listenChecked && (
                 <>
-                  <button className="link small" onClick={() => setShowKeyboard((v) => !v)}>
-                    {showKeyboard ? 'Hide Armenian keyboard' : '⌨ Show Armenian keyboard'}
-                  </button>
-                  {showKeyboard && (
-                    <ArmenianKeyboard
+                  {needsKeyboard && (
+                    <button className="link small" onClick={() => setShowKeyboard((v) => !v)}>
+                      {showKeyboard ? 'Hide keyboard' : `⌨ Show ${LANGUAGES[lang].name} keyboard`}
+                    </button>
+                  )}
+                  {needsKeyboard && showKeyboard && keyboard && (
+                    <Keyboard
+                      lower={keyboard.lower}
+                      upper={keyboard.upper}
+                      marks={keyboard.marks}
                       onInsert={(char) => setTyped((t) => t + char)}
                       onBackspace={() => setTyped((t) => t.slice(0, -1))}
                     />
@@ -313,7 +331,7 @@ export default function PracticeView({ accessCode, cards, decks, onAnswer, onLim
               {mode === 'speaking' && transcript && (
                 <p className="heard">We heard: “{transcript}”</p>
               )}
-              {mode === 'listening' && <p className="heard">Answer: {current.armenian}</p>}
+              {mode === 'listening' && <p className="heard">Answer: {current.target}</p>}
 
               <button className="primary" onClick={nextCard}>
                 Next phrase

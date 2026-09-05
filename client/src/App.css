@@ -288,6 +288,20 @@ header {
   gap: 0.7rem;
 }
 
+/* Secondary to the ASA wordmark — picks which language is being learned. */
+.lang-picker {
+  margin-left: auto;
+  padding: 0.4rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  outline: none;
+}
+
 .theme-toggle {
   flex-shrink: 0;
   width: 2.75rem;

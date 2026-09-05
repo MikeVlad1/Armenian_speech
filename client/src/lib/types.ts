@@ -4,8 +4,12 @@ export type TranslateResult = {
   notes: string
 }
 
+export type LangCode = 'hy' | 'es' | 'fr' | 'ru'
+export const LANG_CODES: LangCode[] = ['hy', 'es', 'fr', 'ru']
+
 export type Deck = {
   id: string
+  lang: LangCode
   name: string
   description: string
   builtin: boolean
@@ -14,8 +18,11 @@ export type Deck = {
 export type Card = {
   id: string
   deckId: string
-  armenian: string
-  english: string
+  lang: LangCode
+  /** The word/phrase in the language being learned. */
+  target: string
+  /** The English meaning — English is always the fixed reference language. */
+  native: string
   transliteration: string
   notes: string
   createdAt: number

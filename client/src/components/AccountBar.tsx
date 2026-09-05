@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { SyncState } from '../lib/useSync'
-import { isValidPayload, mergePayload, type SyncPayload } from '../lib/sync'
+import { isValidPayload, mergePayload, migratePayload, type SyncPayload } from '../lib/sync'
 
 type Props = {
   sync: SyncState
@@ -44,7 +44,7 @@ export default function AccountBar({ sync, data, onImport }: Props) {
       }
       // Merge rather than replace: restoring an older backup must never
       // silently discard progress made since it was taken.
-      const merged = mergePayload(data, parsed)
+      const merged = mergePayload(data, migratePayload(parsed))
       const added = merged.cards.length - data.cards.length
       onImport(merged)
       setImportMsg(

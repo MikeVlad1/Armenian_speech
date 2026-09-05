@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { fetchRemote, isSyncConfigured, pushRemote, supabase } from './supabase'
-import { mergePayload, type SyncPayload } from './sync'
+import { mergePayload, migratePayload, type SyncPayload } from './sync'
 
 const PUSH_DEBOUNCE_MS = 2000
 
@@ -54,7 +54,8 @@ export function useSync({ data, onMerged }: Options): SyncState {
     setBusy(true)
     setError('')
     try {
-      const remote = await fetchRemote(session.user.id)
+      const raw = await fetchRemote(session.user.id)
+      const remote = raw ? migratePayload(raw) : null
       const merged = remote ? mergePayload(dataRef.current, remote) : dataRef.current
       if (remote) {
         skipNextPush.current = true

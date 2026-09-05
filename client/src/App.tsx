@@ -26,6 +26,9 @@ import {
   todayKey,
 } from './lib/storage'
 import { API_BASE, ApiError, cancelSubscription } from './lib/api'
+import { useActiveLanguage } from './lib/useActiveLanguage'
+import { LANGUAGES } from './lib/languages'
+import { LANG_CODES } from './lib/types'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
@@ -103,6 +106,10 @@ function App() {
   const [cards, setCards] = useState<Card[]>(seed.cards)
   const [stats, setStats] = useState<Stats>(loadStats)
 
+  const [lang, setLang] = useActiveLanguage()
+  const langDecks = useMemo(() => decks.filter((d) => d.lang === lang), [decks, lang])
+  const langCards = useMemo(() => cards.filter((c) => c.lang === lang), [cards, lang])
+
   useEffect(() => saveDecks(decks), [decks])
   useEffect(() => saveCards(cards), [cards])
   useEffect(() => saveStats(stats), [stats])
@@ -168,11 +175,14 @@ function App() {
     setCards((prev) => prev.map((c) => (c.id === id ? { ...c, deckId, updatedAt: Date.now() } : c)))
   }, [])
 
-  const createDeck = useCallback((name: string): string => {
-    const deck: Deck = { id: crypto.randomUUID(), name, description: '', builtin: false }
-    setDecks((prev) => [...prev, deck])
-    return deck.id
-  }, [])
+  const createDeck = useCallback(
+    (name: string): string => {
+      const deck: Deck = { id: crypto.randomUUID(), lang, name, description: '', builtin: false }
+      setDecks((prev) => [...prev, deck])
+      return deck.id
+    },
+    [lang]
+  )
 
   const deleteDeck = useCallback((id: string) => {
     setDecks((prev) => prev.filter((d) => d.id !== id))
@@ -280,7 +290,7 @@ function App() {
     return () => document.removeEventListener('mousedown', onClick)
   }, [planMenuOpen])
 
-  const due = useMemo(() => dueCards(cards).length, [cards])
+  const due = useMemo(() => dueCards(langCards).length, [langCards])
   const streak = useMemo(() => currentStreak(stats), [stats])
   const todayReviews = stats.byDay[todayKey()]?.reviews ?? 0
 
@@ -291,6 +301,19 @@ function App() {
           <header>
             <div className="brand-row">
               <h1>ASA</h1>
+              <select
+                className="lang-picker"
+                value={lang}
+                onChange={(e) => setLang(e.target.value as typeof lang)}
+                aria-label="Learning language"
+                title="Language you're learning"
+              >
+                {LANG_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {LANGUAGES[code].name}
+                  </option>
+                ))}
+              </select>
               <button
                 className="theme-toggle"
                 onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -320,7 +343,7 @@ function App() {
               <strong>{todayReviews}</strong> today
             </span>
             <span className="stat">
-              <strong>{cards.length}</strong> cards
+              <strong>{langCards.length}</strong> cards
             </span>
           </div>
         </div>
@@ -445,7 +468,8 @@ function App() {
           {renderedTab === 'translate' && (
             <TranslateView
               accessCode={accessCode}
-              decks={decks}
+              lang={lang}
+              decks={langDecks}
               dueCount={due}
               onAddCards={addCards}
               onLimitReached={() => setLimitReached(true)}
@@ -454,28 +478,36 @@ function App() {
           )}
 
           {renderedTab === 'flashcards' && (
-            <FlashcardsView accessCode={accessCode} cards={cards} decks={decks} onGrade={gradeCard} />
+            <FlashcardsView
+              accessCode={accessCode}
+              lang={lang}
+              cards={langCards}
+              decks={langDecks}
+              onGrade={gradeCard}
+            />
           )}
 
           {renderedTab === 'practice' && (
             <PracticeView
               accessCode={accessCode}
-              cards={cards}
-              decks={decks}
+              lang={lang}
+              cards={langCards}
+              decks={langDecks}
               onAnswer={recordAnswer}
               onLimitReached={() => setLimitReached(true)}
             />
           )}
 
           {renderedTab === 'quiz' && (
-            <QuizView accessCode={accessCode} cards={cards} decks={decks} onAnswer={recordAnswer} />
+            <QuizView accessCode={accessCode} lang={lang} cards={langCards} decks={langDecks} onAnswer={recordAnswer} />
           )}
 
           {renderedTab === 'library' && (
             <LibraryView
               accessCode={accessCode}
-              cards={cards}
-              decks={decks}
+              lang={lang}
+              cards={langCards}
+              decks={langDecks}
               onAddCards={addCards}
               onDeleteCard={deleteCard}
               onMoveCard={moveCard}

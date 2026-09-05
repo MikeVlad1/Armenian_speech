@@ -13,7 +13,7 @@ const MIN_EASE = 1.3
 const MAX_INTERVAL = 365 // days
 
 export function newCard(
-  fields: Pick<Card, 'deckId' | 'armenian' | 'english' | 'transliteration' | 'notes'>
+  fields: Pick<Card, 'deckId' | 'lang' | 'target' | 'native' | 'transliteration' | 'notes'>
 ): Card {
   return {
     id: crypto.randomUUID(),

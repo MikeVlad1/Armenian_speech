@@ -1,5 +1,6 @@
-import type { Card, Deck, Stats } from './types'
+import { LANG_CODES, type Card, type Deck, type LangCode, type Stats } from './types'
 import { newCard } from './srs'
+import { migrateCard, migrateDeck } from './sync'
 import { STARTER_DECKS } from '../data/starterDecks'
 
 const DECKS_KEY = 'asa.decks.v1'
@@ -25,7 +26,7 @@ function write(key: string, value: unknown): void {
 }
 
 export function loadDecks(): Deck[] {
-  return read<Deck[]>(DECKS_KEY, [])
+  return read<Deck[]>(DECKS_KEY, []).map(migrateDeck)
 }
 
 export function saveDecks(decks: Deck[]): void {
@@ -33,12 +34,9 @@ export function saveDecks(decks: Deck[]): void {
 }
 
 export function loadCards(): Card[] {
-  // Cards saved before sync existed have no updatedAt; treat their creation
-  // time as the last edit so merges compare them sensibly.
-  return read<Card[]>(CARDS_KEY, []).map((card) => ({
-    ...card,
-    updatedAt: card.updatedAt ?? card.createdAt ?? 0,
-  }))
+  // Cards saved before multi-language/sync existed are missing lang/target/
+  // native/updatedAt; migrateCard backfills all of that from the legacy shape.
+  return read<Card[]>(CARDS_KEY, []).map(migrateCard)
 }
 
 export function saveCards(cards: Card[]): void {
@@ -92,31 +90,72 @@ export function currentStreak(stats: Stats, now: number = Date.now()): number {
 }
 
 /**
- * Seeds built-in decks the first time the app runs. Returns the full deck and
- * card set so callers can hydrate state in one pass.
+ * The "My Phrases" deck keeps its original unqualified id for Armenian so
+ * existing users' saved phrases need no id migration; new languages get their
+ * own deck via a `-${lang}` suffix.
+ */
+export function myPhrasesDeckId(lang: LangCode): string {
+  return lang === 'hy' ? 'my-phrases' : `my-phrases-${lang}`
+}
+
+/**
+ * Which languages' starter decks have already been seeded on this device.
+ * Tracked per-language (not a single flag) so that an existing install whose
+ * lone "true" predates multi-language support still gets es/fr/ru seeded
+ * retroactively, without ever re-seeding (or duplicating) Armenian's.
+ */
+function loadSeededLangs(): Set<LangCode> {
+  const raw = localStorage.getItem(SEEDED_KEY)
+  if (raw === 'true') return new Set<LangCode>(['hy'])
+  if (!raw) return new Set()
+  try {
+    const parsed = JSON.parse(raw) as string[]
+    return new Set(parsed.filter((l): l is LangCode => (LANG_CODES as string[]).includes(l)))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveSeededLangs(langs: Set<LangCode>): void {
+  localStorage.setItem(SEEDED_KEY, JSON.stringify([...langs]))
+}
+
+/**
+ * Seeds built-in decks the first time each learning language is encountered
+ * on this device. Unused decks for a language a user never picks are just
+ * inert data, so a fresh install seeds all 4 languages at once; an existing
+ * install only backfills whichever languages it's missing. Returns the full
+ * deck and card set so callers can hydrate state in one pass.
  */
 export function ensureSeeded(): { decks: Deck[]; cards: Card[] } {
-  const alreadySeeded = localStorage.getItem(SEEDED_KEY) === 'true'
+  const seededLangs = loadSeededLangs()
   let decks = loadDecks()
   let cards = loadCards()
 
-  if (!alreadySeeded) {
-    const seededDecks: Deck[] = STARTER_DECKS.map((d) => ({
-      id: d.id,
-      name: d.name,
-      description: d.description,
-      builtin: true,
-    }))
+  const toSeed = LANG_CODES.filter((lang) => !seededLangs.has(lang))
+  if (toSeed.length > 0) {
+    const seededDecks: Deck[] = toSeed.flatMap((lang) =>
+      STARTER_DECKS[lang].map((d) => ({
+        id: d.id,
+        lang,
+        name: d.name,
+        description: d.description,
+        builtin: true,
+      }))
+    )
 
-    const seededCards: Card[] = STARTER_DECKS.flatMap((deck) =>
-      deck.cards.map((c) =>
-        newCard({
-          deckId: deck.id,
-          armenian: c.armenian,
-          english: c.english,
-          transliteration: c.transliteration,
-          notes: c.notes ?? '',
-        })
+    const seededCards: Card[] = toSeed.flatMap((lang) =>
+      STARTER_DECKS[lang].flatMap((deck) =>
+        deck.cards.map((c) =>
+          newCard({
+            deckId: deck.id,
+            lang,
+            target: c.target,
+            native: c.native,
+            transliteration: c.transliteration,
+            notes: c.notes ?? '',
+          })
+        )
       )
     )
 
@@ -126,19 +165,25 @@ export function ensureSeeded(): { decks: Deck[]; cards: Card[] } {
 
     saveDecks(decks)
     saveCards(cards)
-    localStorage.setItem(SEEDED_KEY, 'true')
+    saveSeededLangs(new Set([...seededLangs, ...toSeed]))
   }
 
-  // Always guarantee a destination for user-saved phrases.
-  if (!decks.some((d) => d.id === MY_PHRASES_DECK_ID)) {
-    decks = [
-      { id: MY_PHRASES_DECK_ID, name: 'My Phrases', description: 'Phrases you saved from translations.', builtin: false },
-      ...decks,
-    ]
+  // Always guarantee a "My Phrases" destination per language.
+  const missingPhraseDecks = LANG_CODES.filter(
+    (lang) => !decks.some((d) => d.id === myPhrasesDeckId(lang))
+  ).map(
+    (lang): Deck => ({
+      id: myPhrasesDeckId(lang),
+      lang,
+      name: 'My Phrases',
+      description: 'Phrases you saved from translations.',
+      builtin: false,
+    })
+  )
+  if (missingPhraseDecks.length > 0) {
+    decks = [...missingPhraseDecks, ...decks]
     saveDecks(decks)
   }
 
   return { decks, cards }
 }
-
-export const MY_PHRASES_DECK_ID = 'my-phrases'

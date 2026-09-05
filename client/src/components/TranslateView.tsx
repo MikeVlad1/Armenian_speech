@@ -1,45 +1,37 @@
 import { useEffect, useState } from 'react'
-import type { Deck, TranslateResult } from '../lib/types'
-import {
-  LANGUAGES,
-  OTHER_LANGS,
-  directionFor,
-  isToArmenian,
-  isValidDirection,
-  otherLangOf,
-  placeholderFor,
-  type Direction,
-  type OtherLang,
-} from '../lib/languages'
+import type { Deck, LangCode, TranslateResult } from '../lib/types'
+import { LANGUAGES } from '../lib/languages'
 import { ApiError, breakdown, translate, type BreakdownWord } from '../lib/api'
 import { useAudio } from '../lib/useAudio'
-import { MY_PHRASES_DECK_ID } from '../lib/storage'
+import { myPhrasesDeckId } from '../lib/storage'
 
 const HISTORY_KEY = 'armenian-speaker-history'
 const HISTORY_LIMIT = 12
-const DIRECTION_KEY = 'armenian-speaker-direction'
+const TO_TARGET_KEY = 'armenian-speaker-to-target'
 
-function loadDirection(): Direction {
-  const stored = localStorage.getItem(DIRECTION_KEY)
-  return isValidDirection(stored) ? stored : 'en-hy'
+function loadToTarget(): boolean {
+  return localStorage.getItem(TO_TARGET_KEY) !== 'false'
 }
 
 type HistoryEntry = TranslateResult & {
   id: string
-  direction: Direction
+  lang: LangCode
+  toTarget: boolean
   input: string
   timestamp: number
 }
 
 export type NewCardFields = {
-  armenian: string
-  english: string
+  lang: LangCode
+  target: string
+  native: string
   transliteration: string
   notes: string
 }
 
 type Props = {
   accessCode: string | null
+  lang: LangCode
   decks: Deck[]
   dueCount: number
   onAddCards: (cards: NewCardFields[], deckId: string) => void
@@ -58,13 +50,14 @@ function loadHistory(): HistoryEntry[] {
 
 export default function TranslateView({
   accessCode,
+  lang,
   decks,
   dueCount,
   onAddCards,
   onLimitReached,
   onStudy,
 }: Props) {
-  const [direction, setDirection] = useState<Direction>(loadDirection)
+  const [toTarget, setToTarget] = useState<boolean>(loadToTarget)
   const [input, setInput] = useState('')
   const [result, setResult] = useState<TranslateResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -83,15 +76,13 @@ export default function TranslateView({
   }, [history])
 
   useEffect(() => {
-    localStorage.setItem(DIRECTION_KEY, direction)
-  }, [direction])
+    localStorage.setItem(TO_TARGET_KEY, String(toTarget))
+  }, [toTarget])
 
-  const toArmenian = isToArmenian(direction)
-  const otherLang = otherLangOf(direction)
-  const armenianText = toArmenian ? result?.translated ?? '' : input
-  // The "meaning" side of a saved flashcard - always the non-Armenian text,
-  // whichever of the four languages that happens to be.
-  const otherLangText = toArmenian ? input : result?.translated ?? ''
+  // The "meaning" side of a saved flashcard is always the English text,
+  // whichever direction the translation ran.
+  const targetText = toTarget ? result?.translated ?? '' : input
+  const nativeText = toTarget ? input : result?.translated ?? ''
 
   function handleError(err: unknown) {
     if (err instanceof ApiError && err.limitReached) onLimitReached()
@@ -107,13 +98,8 @@ export default function TranslateView({
   }
 
   function swapDirection() {
-    setDirection((d) => directionFor(otherLangOf(d), !isToArmenian(d)))
+    setToTarget((v) => !v)
     setInput(result?.translated ?? '')
-    resetForNewInput()
-  }
-
-  function changeOtherLang(next: OtherLang) {
-    setDirection((d) => directionFor(next, isToArmenian(d)))
     resetForNewInput()
   }
 
@@ -122,11 +108,11 @@ export default function TranslateView({
     setLoading(true)
     resetForNewInput()
     try {
-      const data = await translate(input, direction, accessCode)
+      const data = await translate(input, lang, toTarget, accessCode)
       setResult(data)
       setHistory((prev) =>
         [
-          { ...data, id: crypto.randomUUID(), direction, input, timestamp: Date.now() },
+          { ...data, id: crypto.randomUUID(), lang, toTarget, input, timestamp: Date.now() },
           ...prev,
         ].slice(0, HISTORY_LIMIT)
       )
@@ -138,11 +124,11 @@ export default function TranslateView({
   }
 
   async function handleBreakdown() {
-    if (!armenianText.trim() || breakingDown) return
+    if (!targetText.trim() || breakingDown) return
     setBreakingDown(true)
     setError('')
     try {
-      setWords(await breakdown(armenianText, accessCode))
+      setWords(await breakdown(targetText, lang, accessCode))
     } catch (err) {
       handleError(err)
     } finally {
@@ -155,13 +141,14 @@ export default function TranslateView({
     onAddCards(
       [
         {
-          armenian: armenianText,
-          english: otherLangText,
+          lang,
+          target: targetText,
+          native: nativeText,
           transliteration: result.transliteration,
           notes: result.notes,
         },
       ],
-      MY_PHRASES_DECK_ID
+      myPhrasesDeckId(lang)
     )
     setSaved(true)
     setTimeout(() => setSaved(false), 1800)
@@ -171,29 +158,31 @@ export default function TranslateView({
     onAddCards(
       [
         {
-          armenian: word.armenian,
-          english: word.english,
+          lang,
+          target: word.target,
+          native: word.english,
           transliteration: word.transliteration,
           notes: word.partOfSpeech ?? '',
         },
       ],
-      MY_PHRASES_DECK_ID
+      myPhrasesDeckId(lang)
     )
-    setSavedWords((prev) => new Set(prev).add(word.armenian))
+    setSavedWords((prev) => new Set(prev).add(word.target))
   }
 
   function handleSaveAllWords() {
     if (!words?.length) return
     onAddCards(
       words.map((w) => ({
-        armenian: w.armenian,
-        english: w.english,
+        lang,
+        target: w.target,
+        native: w.english,
         transliteration: w.transliteration,
         notes: w.partOfSpeech ?? '',
       })),
-      MY_PHRASES_DECK_ID
+      myPhrasesDeckId(lang)
     )
-    setSavedWords(new Set(words.map((w) => w.armenian)))
+    setSavedWords(new Set(words.map((w) => w.target)))
   }
 
   async function handleCopy() {
@@ -204,7 +193,7 @@ export default function TranslateView({
   }
 
   function restoreEntry(entry: HistoryEntry) {
-    setDirection(entry.direction)
+    setToTarget(entry.toTarget)
     setInput(entry.input)
     setResult({
       translated: entry.translated,
@@ -219,28 +208,17 @@ export default function TranslateView({
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleTranslate()
   }
 
-  const deckName = decks.find((d) => d.id === MY_PHRASES_DECK_ID)?.name ?? 'My Phrases'
+  const deckName = decks.find((d) => d.id === myPhrasesDeckId(lang))?.name ?? 'My Phrases'
 
   return (
     <div className="layout-split">
       <div className="layout-main">
       <div className="direction-bar">
-        <select
-          className={`lang-pill lang-select ${toArmenian ? 'active' : ''}`}
-          value={otherLang}
-          onChange={(e) => changeOtherLang(e.target.value as OtherLang)}
-          aria-label="Other language"
-        >
-          {OTHER_LANGS.map((code) => (
-            <option key={code} value={code}>
-              {LANGUAGES[code].name}
-            </option>
-          ))}
-        </select>
+        <span className={`lang-pill ${toTarget ? 'active' : ''}`}>English</span>
         <button className="swap-btn" onClick={swapDirection} aria-label="Swap direction" title="Swap direction">
           ⇄
         </button>
-        <span className={`lang-pill ${!toArmenian ? 'active' : ''}`}>Armenian</span>
+        <span className={`lang-pill ${!toTarget ? 'active' : ''}`}>{LANGUAGES[lang].name}</span>
       </div>
 
       <div className="card">
@@ -248,7 +226,7 @@ export default function TranslateView({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholderFor(direction)}
+          placeholder={toTarget ? 'Type an English sentence…' : LANGUAGES[lang].placeholder}
           rows={4}
         />
         <div className="card-footer">
@@ -271,15 +249,15 @@ export default function TranslateView({
           <div className="result-actions">
             <button
               className="ghost"
-              onClick={() => audio.play(armenianText)}
-              disabled={audio.playing || !armenianText.trim()}
+              onClick={() => audio.play(targetText, { lang })}
+              disabled={audio.playing || !targetText.trim()}
             >
               {audio.playing ? <span className="spinner dark" /> : '🔊'} Speak
             </button>
             <button
               className="ghost"
-              onClick={() => audio.play(armenianText, { rate: 'slow' })}
-              disabled={audio.playing || !armenianText.trim()}
+              onClick={() => audio.play(targetText, { lang, rate: 'slow' })}
+              disabled={audio.playing || !targetText.trim()}
             >
               🐢 Slow
             </button>
@@ -311,9 +289,9 @@ export default function TranslateView({
           ) : (
             <ul className="word-list">
               {words.map((word) => (
-                <li key={`${word.armenian}-${word.english}`}>
+                <li key={`${word.target}-${word.english}`}>
                   <div className="word-main">
-                    <span className="word-arm">{word.armenian}</span>
+                    <span className="word-arm">{word.target}</span>
                     <span className="word-translit">{word.transliteration}</span>
                   </div>
                   <div className="word-meta">
@@ -321,16 +299,16 @@ export default function TranslateView({
                     {word.partOfSpeech && <span className="word-pos">{word.partOfSpeech}</span>}
                   </div>
                   <div className="word-actions">
-                    <button className="icon-btn" onClick={() => audio.play(word.armenian)} title="Play">
+                    <button className="icon-btn" onClick={() => audio.play(word.target, { lang })} title="Play">
                       🔊
                     </button>
                     <button
                       className="icon-btn"
                       onClick={() => handleSaveWord(word)}
-                      disabled={savedWords.has(word.armenian)}
+                      disabled={savedWords.has(word.target)}
                       title="Save as flashcard"
                     >
-                      {savedWords.has(word.armenian) ? '✓' : '＋'}
+                      {savedWords.has(word.target) ? '✓' : '＋'}
                     </button>
                   </div>
                 </li>

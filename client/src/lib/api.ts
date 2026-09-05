@@ -1,5 +1,4 @@
-import type { TranslateResult } from './types'
-import type { Direction } from './languages'
+import type { LangCode, TranslateResult } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -23,13 +22,14 @@ async function throwForResponse(res: Response, fallback: string): Promise<never>
 
 export async function translate(
   text: string,
-  direction: Direction,
+  lang: LangCode,
+  toTarget: boolean,
   accessCode: string | null
 ): Promise<TranslateResult> {
   const res = await fetch(`${API_BASE}/api/translate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(accessCode) },
-    body: JSON.stringify({ text, direction }),
+    body: JSON.stringify({ text, lang, toTarget }),
   })
   if (!res.ok) await throwForResponse(res, 'Translation failed')
   return res.json()
@@ -38,12 +38,17 @@ export async function translate(
 export async function speak(
   text: string,
   accessCode: string | null,
-  opts: { voice?: 'female' | 'male'; rate?: 'normal' | 'slow' } = {}
+  opts: { lang: LangCode; voice?: 'female' | 'male'; rate?: 'normal' | 'slow' }
 ): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/speak`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(accessCode) },
-    body: JSON.stringify({ text, voice: opts.voice ?? 'female', rate: opts.rate ?? 'normal' }),
+    body: JSON.stringify({
+      text,
+      lang: opts.lang,
+      voice: opts.voice ?? 'female',
+      rate: opts.rate ?? 'normal',
+    }),
   })
   if (!res.ok) await throwForResponse(res, 'Speech request failed')
   return res.blob()
@@ -51,9 +56,10 @@ export async function speak(
 
 export async function transcribe(
   audio: Blob,
-  accessCode: string | null
+  accessCode: string | null,
+  lang: LangCode
 ): Promise<{ transcript: string; status: string }> {
-  const res = await fetch(`${API_BASE}/api/transcribe`, {
+  const res = await fetch(`${API_BASE}/api/transcribe?lang=${lang}`, {
     method: 'POST',
     headers: { 'Content-Type': audio.type || 'audio/webm', ...authHeaders(accessCode) },
     body: audio,
@@ -104,7 +110,7 @@ export async function createDonationSession(
 }
 
 export type BreakdownWord = {
-  armenian: string
+  target: string
   english: string
   transliteration: string
   partOfSpeech: string
@@ -112,12 +118,13 @@ export type BreakdownWord = {
 
 export async function breakdown(
   text: string,
+  lang: LangCode,
   accessCode: string | null
 ): Promise<BreakdownWord[]> {
   const res = await fetch(`${API_BASE}/api/breakdown`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(accessCode) },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, lang }),
   })
   if (!res.ok) await throwForResponse(res, 'Breakdown failed')
   const data = await res.json()

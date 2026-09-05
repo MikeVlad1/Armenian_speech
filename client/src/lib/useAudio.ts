@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { speak } from './api'
+import type { LangCode } from './types'
 
 /**
- * Plays Armenian TTS audio, reusing a single <audio> element and revoking
- * blob URLs as it goes so long study sessions don't leak memory.
+ * Plays target-language TTS audio, reusing a single <audio> element and
+ * revoking blob URLs as it goes so long study sessions don't leak memory.
  */
 export function useAudio(accessCode: string | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -20,7 +21,10 @@ export function useAudio(accessCode: string | null) {
   }, [])
 
   const play = useCallback(
-    async (text: string, opts: { voice?: 'female' | 'male'; rate?: 'normal' | 'slow' } = {}) => {
+    async (
+      text: string,
+      opts: { lang: LangCode; voice?: 'female' | 'male'; rate?: 'normal' | 'slow' }
+    ) => {
       if (!text.trim() || playing) return
       setPlaying(true)
       setError('')

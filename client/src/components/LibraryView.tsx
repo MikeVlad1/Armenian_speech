@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
-import type { Card, Deck } from '../lib/types'
+import type { Card, Deck, LangCode } from '../lib/types'
+import { LANGUAGES } from '../lib/languages'
 import { isNew } from '../lib/srs'
 import { useAudio } from '../lib/useAudio'
 import type { NewCardFields } from './TranslateView'
 
 type Props = {
   accessCode: string | null
+  lang: LangCode
   cards: Card[]
   decks: Deck[]
   onAddCards: (cards: NewCardFields[], deckId: string) => void
@@ -28,6 +30,7 @@ function dueLabel(card: Card): string {
 
 export default function LibraryView({
   accessCode,
+  lang,
   cards,
   decks,
   onAddCards,
@@ -41,8 +44,9 @@ export default function LibraryView({
   const [showAdd, setShowAdd] = useState(false)
   const [newDeckName, setNewDeckName] = useState('')
   const [draft, setDraft] = useState<NewCardFields & { deckId: string }>({
-    armenian: '',
-    english: '',
+    lang,
+    target: '',
+    native: '',
     transliteration: '',
     notes: '',
     deckId: decks[0]?.id ?? '',
@@ -57,29 +61,30 @@ export default function LibraryView({
       .filter((c) =>
         !q
           ? true
-          : c.armenian.toLowerCase().includes(q) ||
-            c.english.toLowerCase().includes(q) ||
+          : c.target.toLowerCase().includes(q) ||
+            c.native.toLowerCase().includes(q) ||
             c.transliteration.toLowerCase().includes(q)
       )
       .sort((a, b) => b.createdAt - a.createdAt)
   }, [cards, deckId, query])
 
   function handleAdd() {
-    if (!draft.armenian.trim() || !draft.english.trim()) return
-    const target = draft.deckId || decks[0]?.id
-    if (!target) return
+    if (!draft.target.trim() || !draft.native.trim()) return
+    const deckTarget = draft.deckId || decks[0]?.id
+    if (!deckTarget) return
     onAddCards(
       [
         {
-          armenian: draft.armenian.trim(),
-          english: draft.english.trim(),
+          lang,
+          target: draft.target.trim(),
+          native: draft.native.trim(),
           transliteration: draft.transliteration.trim(),
           notes: draft.notes.trim(),
         },
       ],
-      target
+      deckTarget
     )
-    setDraft({ armenian: '', english: '', transliteration: '', notes: '', deckId: target })
+    setDraft({ lang, target: '', native: '', transliteration: '', notes: '', deckId: deckTarget })
     setShowAdd(false)
   }
 
@@ -145,18 +150,17 @@ export default function LibraryView({
       {showAdd && (
         <div className="card add-card-form">
           <label className="field">
-            <span>Armenian</span>
+            <span>{LANGUAGES[lang].name}</span>
             <input
-              value={draft.armenian}
-              onChange={(e) => setDraft({ ...draft, armenian: e.target.value })}
-              placeholder="Բարև"
+              value={draft.target}
+              onChange={(e) => setDraft({ ...draft, target: e.target.value })}
             />
           </label>
           <label className="field">
             <span>English</span>
             <input
-              value={draft.english}
-              onChange={(e) => setDraft({ ...draft, english: e.target.value })}
+              value={draft.native}
+              onChange={(e) => setDraft({ ...draft, native: e.target.value })}
               placeholder="Hello"
             />
           </label>
@@ -181,7 +185,7 @@ export default function LibraryView({
           <button
             className="primary"
             onClick={handleAdd}
-            disabled={!draft.armenian.trim() || !draft.english.trim()}
+            disabled={!draft.target.trim() || !draft.native.trim()}
           >
             Add card
           </button>
@@ -202,8 +206,8 @@ export default function LibraryView({
           {filtered.map((card) => (
             <li key={card.id} className="library-item">
               <div className="library-main">
-                <span className="library-arm">{card.armenian}</span>
-                <span className="library-en">{card.english}</span>
+                <span className="library-arm">{card.target}</span>
+                <span className="library-en">{card.native}</span>
                 {card.transliteration && <span className="library-translit">{card.transliteration}</span>}
               </div>
               <div className="library-side">
@@ -211,7 +215,7 @@ export default function LibraryView({
                   {dueLabel(card)}
                 </span>
                 <div className="library-buttons">
-                  <button className="icon-btn" onClick={() => audio.play(card.armenian)} title="Play">
+                  <button className="icon-btn" onClick={() => audio.play(card.target, { lang: card.lang })} title="Play">
                     🔊
                   </button>
                   <select
