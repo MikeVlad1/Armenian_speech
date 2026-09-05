@@ -117,30 +117,57 @@ You are a translation engine, not an assistant. Never address the user, never as
 
 If the source is genuinely untranslatable (only digits, punctuation or symbols), set "translated" to an empty string. Never place a request for text, an apology, or any message to the user inside "translated".`;
 
-const EN_TO_HY_PROMPT = `You are an expert English-to-Armenian (Eastern Armenian) translator and grammar checker.
+/**
+ * The app only ever pairs one of these with Armenian - it teaches Armenian,
+ * it isn't a general translator - so a request names just the other language
+ * by its two-letter code and which direction the arrow points.
+ */
+const LANGUAGES = { en: 'English', es: 'Spanish', fr: 'French', ru: 'Russian' };
 
-Translate the delimited English text into natural, grammatically correct Eastern Armenian, using the Armenian script (not transliteration).
+function buildToArmenianPrompt(otherName) {
+  return `You are an expert ${otherName}-to-Armenian (Eastern Armenian) translator and grammar checker.
+
+Translate the delimited ${otherName} text into natural, grammatically correct Eastern Armenian, using the Armenian script (not transliteration).
 
 ${SHARED_RULES}
 
 Rules:
 - Produce natural, everyday Armenian a native speaker would actually use, not a stiff literal translation.
-- Apply correct Armenian case, verb conjugation, and word order — do not just substitute words one-for-one from English.
-- If the English input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
+- Apply correct Armenian case, verb conjugation, and word order — do not just substitute words one-for-one from ${otherName}.
+- If the ${otherName} input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
 - "transliteration" is a phonetic rendering of the Armenian translation using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in Armenian, Cyrillic or any other script, and never carry Armenian punctuation across — write "Vortegh", never "Vorte՞ղ".
-- "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting.`;
+- "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting. It must be written in ${otherName} — the reader doesn't know Armenian yet, that's why they're translating into it, so a note in Armenian is unreadable to them. Quoting a specific Armenian word or phrase inline is fine; the explanation around it must still be in ${otherName}.`;
+}
 
-const HY_TO_EN_PROMPT = `You are an expert Armenian (Eastern Armenian)-to-English translator.
+function buildFromArmenianPrompt(otherName) {
+  return `You are an expert Armenian (Eastern Armenian)-to-${otherName} translator.
 
-Translate the delimited Armenian text (given in Armenian script) into natural, fluent English.
+Translate the delimited Armenian text (given in Armenian script) into natural, fluent ${otherName}.
 
 ${SHARED_RULES}
 
 Rules:
-- Produce natural English a native speaker would actually use, not a stiff literal translation.
+- Produce natural ${otherName} a native speaker would actually use, not a stiff literal translation.
 - If the Armenian input is ambiguous, choose the most common/neutral interpretation.
 - "transliteration" is a phonetic rendering of the ORIGINAL Armenian input using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in Armenian, Cyrillic or any other script, and never carry Armenian punctuation across — write "Vortegh", never "Vorte՞ղ".
-- "notes" is a short note worth flagging, or an empty string if there's nothing worth noting.`;
+- "notes" is a short note worth flagging, or an empty string if there's nothing worth noting. It must be written in ${otherName}, matching "translated" — not Armenian. Quoting a specific Armenian word or phrase from the source inline is fine; the explanation around it must still be in ${otherName}.`;
+}
+
+/**
+ * Parses e.g. "es-hy" / "hy-es" into { otherName: "Spanish", toArmenian: true }.
+ * Returns null for anything that isn't exactly one of the 8 supported pairs -
+ * callers must treat null as a 400, not fall back to a default language.
+ */
+function parseDirection(direction) {
+  if (typeof direction !== 'string') return null;
+  const toArmenian = direction.endsWith('-hy');
+  const fromArmenian = direction.startsWith('hy-');
+  if (toArmenian === fromArmenian) return null; // exactly one must hold, never both/neither
+  const code = toArmenian ? direction.slice(0, -3) : direction.slice(3);
+  const otherName = LANGUAGES[code];
+  if (!otherName) return null;
+  return { otherName, toArmenian };
+}
 
 /** Stops a crafted input from closing the delimiter and escaping the data block. */
 function wrapSource(text) {
@@ -178,11 +205,17 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
   if (!text || typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
+  const parsed = parseDirection(direction);
+  if (!parsed) {
+    return res.status(400).json({ error: 'Unsupported translation direction' });
+  }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
   }
 
-  const systemPrompt = direction === 'hy-en' ? HY_TO_EN_PROMPT : EN_TO_HY_PROMPT;
+  const systemPrompt = parsed.toArmenian
+    ? buildToArmenianPrompt(parsed.otherName)
+    : buildFromArmenianPrompt(parsed.otherName);
 
   async function attempt(effort) {
     const message = await anthropic.messages.create({

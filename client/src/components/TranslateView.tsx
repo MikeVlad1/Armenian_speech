@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react'
-import type { Deck, Direction, TranslateResult } from '../lib/types'
+import type { Deck, TranslateResult } from '../lib/types'
+import {
+  LANGUAGES,
+  OTHER_LANGS,
+  directionFor,
+  isToArmenian,
+  isValidDirection,
+  otherLangOf,
+  placeholderFor,
+  type Direction,
+  type OtherLang,
+} from '../lib/languages'
 import { ApiError, breakdown, translate, type BreakdownWord } from '../lib/api'
 import { useAudio } from '../lib/useAudio'
 import { MY_PHRASES_DECK_ID } from '../lib/storage'
 
 const HISTORY_KEY = 'armenian-speaker-history'
 const HISTORY_LIMIT = 12
+const DIRECTION_KEY = 'armenian-speaker-direction'
+
+function loadDirection(): Direction {
+  const stored = localStorage.getItem(DIRECTION_KEY)
+  return isValidDirection(stored) ? stored : 'en-hy'
+}
 
 type HistoryEntry = TranslateResult & {
   id: string
@@ -47,7 +64,7 @@ export default function TranslateView({
   onLimitReached,
   onStudy,
 }: Props) {
-  const [direction, setDirection] = useState<Direction>('en-hy')
+  const [direction, setDirection] = useState<Direction>(loadDirection)
   const [input, setInput] = useState('')
   const [result, setResult] = useState<TranslateResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -65,31 +82,45 @@ export default function TranslateView({
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
   }, [history])
 
-  const isEnToHy = direction === 'en-hy'
-  const armenianText = isEnToHy ? result?.translated ?? '' : input
-  const englishText = isEnToHy ? input : result?.translated ?? ''
+  useEffect(() => {
+    localStorage.setItem(DIRECTION_KEY, direction)
+  }, [direction])
+
+  const toArmenian = isToArmenian(direction)
+  const otherLang = otherLangOf(direction)
+  const armenianText = toArmenian ? result?.translated ?? '' : input
+  // The "meaning" side of a saved flashcard - always the non-Armenian text,
+  // whichever of the four languages that happens to be.
+  const otherLangText = toArmenian ? input : result?.translated ?? ''
 
   function handleError(err: unknown) {
     if (err instanceof ApiError && err.limitReached) onLimitReached()
     setError(err instanceof Error ? err.message : 'Something went wrong')
   }
 
-  function swapDirection() {
-    setDirection((d) => (d === 'en-hy' ? 'hy-en' : 'en-hy'))
-    setInput(result?.translated ?? '')
+  function resetForNewInput() {
     setResult(null)
     setError('')
     setWords(null)
+    setSaved(false)
+    setSavedWords(new Set())
+  }
+
+  function swapDirection() {
+    setDirection((d) => directionFor(otherLangOf(d), !isToArmenian(d)))
+    setInput(result?.translated ?? '')
+    resetForNewInput()
+  }
+
+  function changeOtherLang(next: OtherLang) {
+    setDirection((d) => directionFor(next, isToArmenian(d)))
+    resetForNewInput()
   }
 
   async function handleTranslate() {
     if (!input.trim() || loading) return
     setLoading(true)
-    setError('')
-    setResult(null)
-    setWords(null)
-    setSaved(false)
-    setSavedWords(new Set())
+    resetForNewInput()
     try {
       const data = await translate(input, direction, accessCode)
       setResult(data)
@@ -125,7 +156,7 @@ export default function TranslateView({
       [
         {
           armenian: armenianText,
-          english: englishText,
+          english: otherLangText,
           transliteration: result.transliteration,
           notes: result.notes,
         },
@@ -194,11 +225,22 @@ export default function TranslateView({
     <div className="layout-split">
       <div className="layout-main">
       <div className="direction-bar">
-        <span className={`lang-pill ${isEnToHy ? 'active' : ''}`}>English</span>
+        <select
+          className={`lang-pill lang-select ${toArmenian ? 'active' : ''}`}
+          value={otherLang}
+          onChange={(e) => changeOtherLang(e.target.value as OtherLang)}
+          aria-label="Other language"
+        >
+          {OTHER_LANGS.map((code) => (
+            <option key={code} value={code}>
+              {LANGUAGES[code].name}
+            </option>
+          ))}
+        </select>
         <button className="swap-btn" onClick={swapDirection} aria-label="Swap direction" title="Swap direction">
           ⇄
         </button>
-        <span className={`lang-pill ${!isEnToHy ? 'active' : ''}`}>Armenian</span>
+        <span className={`lang-pill ${!toArmenian ? 'active' : ''}`}>Armenian</span>
       </div>
 
       <div className="card">
@@ -206,7 +248,7 @@ export default function TranslateView({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isEnToHy ? 'Type an English sentence…' : 'Հայերեն գրիր այստեղ…'}
+          placeholder={placeholderFor(direction)}
           rows={4}
         />
         <div className="card-footer">

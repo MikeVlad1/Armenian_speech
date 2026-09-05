@@ -1,4 +1,5 @@
-import type { Direction, TranslateResult } from './types'
+import type { TranslateResult } from './types'
+import type { Direction } from './languages'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 

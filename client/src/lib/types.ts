@@ -1,5 +1,3 @@
-export type Direction = 'en-hy' | 'hy-en'
-
 export type TranslateResult = {
   translated: string
   transliteration: string
