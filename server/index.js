@@ -430,8 +430,16 @@ app.post(
         return res.json({ transcript: '', status: data.RecognitionStatus || 'NoMatch' });
       }
 
+      // DisplayText/Display run inverse-text-normalization, which rewrites a
+      // spoken number word into digits ("одиннадцать" -> "11"), a date, etc.
+      // That's fine for a transcription product but wrong for this app: cards
+      // are compared against the literal word/phrase, so a lesson on numbers
+      // would score a correct answer as 0%. Lexical is the raw recognized
+      // words with no such rewriting, so it's what pronunciation checking
+      // needs; only fall back to the formatted forms if Lexical is missing.
+      const lexical = data.NBest?.[0]?.Lexical;
       res.json({
-        transcript: data.DisplayText || data.NBest?.[0]?.Display || '',
+        transcript: lexical || data.DisplayText || data.NBest?.[0]?.Display || '',
         status: 'Success',
       });
     } catch (err) {
