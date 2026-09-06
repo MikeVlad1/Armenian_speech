@@ -3,13 +3,16 @@ import type { Card, Deck, LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 import { dueCards, intervalPreview, isNew, type Grade } from '../lib/srs'
 import { useAudio } from '../lib/useAudio'
+import { canUseAudio } from '../lib/plan'
 
 type Props = {
   accessCode: string | null
   lang: LangCode
   cards: Card[]
   decks: Deck[]
+  isPro: boolean
   onGrade: (card: Card, grade: Grade) => void
+  onUpgrade: () => void
 }
 
 type CardSide = 'target' | 'native'
@@ -21,7 +24,7 @@ const GRADES: { grade: Grade; label: string; className: string }[] = [
   { grade: 'easy', label: 'Easy', className: 'easy' },
 ]
 
-export default function FlashcardsView({ accessCode, lang, cards, decks, onGrade }: Props) {
+export default function FlashcardsView({ accessCode, lang, cards, decks, isPro, onGrade, onUpgrade }: Props) {
   const [deckId, setDeckId] = useState<string>('all')
   const [front, setFront] = useState<CardSide>('target')
   const [revealed, setRevealed] = useState(false)
@@ -35,6 +38,7 @@ export default function FlashcardsView({ accessCode, lang, cards, decks, onGrade
   )
   const queue = useMemo(() => dueCards(scoped), [scoped])
   const current = queue[0]
+  const audioAllowed = !current || canUseAudio(current, decks, isPro)
 
   const counts = useMemo(() => {
     const due = queue.length
@@ -160,18 +164,30 @@ export default function FlashcardsView({ accessCode, lang, cards, decks, onGrade
               {front === 'target' ? current.target : current.native}
             </p>
 
-            {front === 'target' && (
-              <button
-                className="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  audio.play(current.target, { lang: current.lang })
-                }}
-                disabled={audio.playing}
-              >
-                {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
-              </button>
-            )}
+            {front === 'target' &&
+              (audioAllowed ? (
+                <button
+                  className="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    audio.play(current.target, { lang: current.lang })
+                  }}
+                  disabled={audio.playing}
+                >
+                  {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
+                </button>
+              ) : (
+                <button
+                  className="ghost locked"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onUpgrade()
+                  }}
+                  title="Upgrade to Pro to hear your own cards"
+                >
+                  🔒 Listen
+                </button>
+              ))}
 
             {revealed ? (
               <div className="flashcard-back">
@@ -182,18 +198,30 @@ export default function FlashcardsView({ accessCode, lang, cards, decks, onGrade
                   <p className="transliteration">{current.transliteration}</p>
                 )}
                 {current.notes && <p className="notes">{current.notes}</p>}
-                {front === 'native' && (
-                  <button
-                    className="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      audio.play(current.target, { lang: current.lang })
-                    }}
-                    disabled={audio.playing}
-                  >
-                    {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
-                  </button>
-                )}
+                {front === 'native' &&
+                  (audioAllowed ? (
+                    <button
+                      className="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        audio.play(current.target, { lang: current.lang })
+                      }}
+                      disabled={audio.playing}
+                    >
+                      {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
+                    </button>
+                  ) : (
+                    <button
+                      className="ghost locked"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onUpgrade()
+                      }}
+                      title="Upgrade to Pro to hear your own cards"
+                    >
+                      🔒 Listen
+                    </button>
+                  ))}
               </div>
             ) : (
               <p className="reveal-prompt">Tap to reveal · or press Space</p>

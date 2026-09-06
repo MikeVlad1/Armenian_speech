@@ -38,6 +38,16 @@
   vertical-align: middle;
 }
 
+.theme-icon-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 20px;
+  line-height: 1;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     /* Pomegranate (dark) — system-preference fallback before JS applies data-theme */
@@ -112,6 +122,138 @@
   --grid-line: rgba(255, 150, 170, 0.07);
   --glow-1: rgba(190, 32, 66, 0.42);
   --glow-2: rgba(120, 18, 48, 0.5);
+  --sheen: rgba(255, 255, 255, 0.1);
+}
+
+/*
+ * Per-language accent palettes — Armenian keeps the original apricot/
+ * pomegranate scheme above as the default; each other learning language gets
+ * its own light/dark pair drawn from that language's own food, craft, or
+ * landscape traditions rather than its flag. Only the tokens that actually
+ * change are redefined here; danger/ok/warn/shadow stay the shared semantic
+ * colors from the base light/dark blocks above.
+ */
+
+/* Spanish — Saffron & terracotta (light), flamenco red & gold (dark) */
+:root[data-theme='light'][data-lang='es'] {
+  --bg: #fdf1e3;
+  --bg-grad-1: #ffe9c7;
+  --bg-grad-2: #ffd9a0;
+  --card-bg: #ffffff;
+  --text: #5a3a1a;
+  --text-muted: #a67c4e;
+  --border: #f3ddb8;
+  --accent-1: #f2a93c;
+  --accent-2: #d94f30;
+  --accent-shadow: rgba(217, 79, 48, 0.32);
+  --glass-bg: rgba(255, 250, 240, 0.74);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --grid-line: rgba(180, 90, 40, 0.13);
+  --glow-1: rgba(242, 169, 60, 0.45);
+  --glow-2: rgba(217, 79, 48, 0.3);
+  --sheen: rgba(255, 255, 255, 0.62);
+}
+
+:root[data-theme='dark'][data-lang='es'] {
+  --bg: #1c0e08;
+  --bg-grad-1: #2b1810;
+  --bg-grad-2: #341c12;
+  --card-bg: #24140d;
+  --text: #f7e6d3;
+  --text-muted: #c99a72;
+  --border: #3d2416;
+  --accent-1: #e8b23a;
+  --accent-2: #b8281f;
+  --accent-shadow: rgba(184, 40, 31, 0.4);
+  --glass-bg: rgba(72, 42, 24, 0.58);
+  --glass-bg-strong: rgba(80, 48, 27, 0.8);
+  --glass-border: rgba(255, 210, 150, 0.14);
+  --grid-line: rgba(255, 180, 120, 0.07);
+  --glow-1: rgba(232, 178, 58, 0.42);
+  --glow-2: rgba(184, 40, 31, 0.5);
+  --sheen: rgba(255, 255, 255, 0.1);
+}
+
+/* French — Provence lavender (light), navy & gilded gold (dark) */
+:root[data-theme='light'][data-lang='fr'] {
+  --bg: #f1ecf7;
+  --bg-grad-1: #ece0f7;
+  --bg-grad-2: #ddd0f0;
+  --card-bg: #ffffff;
+  --text: #3a2c4a;
+  --text-muted: #8577a0;
+  --border: #e2d7ef;
+  --accent-1: #9b7fd4;
+  --accent-2: #5b4b8a;
+  --accent-shadow: rgba(91, 75, 138, 0.32);
+  --glass-bg: rgba(250, 248, 253, 0.74);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --grid-line: rgba(120, 90, 160, 0.13);
+  --glow-1: rgba(160, 130, 220, 0.45);
+  --glow-2: rgba(91, 75, 138, 0.3);
+  --sheen: rgba(255, 255, 255, 0.62);
+}
+
+:root[data-theme='dark'][data-lang='fr'] {
+  --bg: #0d1220;
+  --bg-grad-1: #131a30;
+  --bg-grad-2: #182038;
+  --card-bg: #141a2c;
+  --text: #eef0fa;
+  --text-muted: #8f9ac0;
+  --border: #232c48;
+  --accent-1: #d8b25c;
+  --accent-2: #3b4a8f;
+  --accent-shadow: rgba(59, 74, 143, 0.4);
+  --glass-bg: rgba(30, 38, 66, 0.58);
+  --glass-bg-strong: rgba(34, 43, 74, 0.8);
+  --glass-border: rgba(216, 178, 92, 0.14);
+  --grid-line: rgba(150, 170, 255, 0.07);
+  --glow-1: rgba(216, 178, 92, 0.42);
+  --glow-2: rgba(59, 74, 143, 0.5);
+  --sheen: rgba(255, 255, 255, 0.1);
+}
+
+/* Russian — birch & meadow green (light), khokhloma lacquer red & gold (dark) */
+:root[data-theme='light'][data-lang='ru'] {
+  --bg: #f0f3ea;
+  --bg-grad-1: #e8f0e0;
+  --bg-grad-2: #d9ead0;
+  --card-bg: #ffffff;
+  --text: #2c3a24;
+  --text-muted: #7a9068;
+  --border: #dde8d2;
+  --accent-1: #8bb85a;
+  --accent-2: #3d6b2f;
+  --accent-shadow: rgba(61, 107, 47, 0.32);
+  --glass-bg: rgba(248, 251, 245, 0.74);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --grid-line: rgba(80, 120, 60, 0.13);
+  --glow-1: rgba(139, 184, 90, 0.45);
+  --glow-2: rgba(61, 107, 47, 0.3);
+  --sheen: rgba(255, 255, 255, 0.62);
+}
+
+:root[data-theme='dark'][data-lang='ru'] {
+  --bg: #150b0e;
+  --bg-grad-1: #220f10;
+  --bg-grad-2: #2c1214;
+  --card-bg: #1c0f10;
+  --text: #f5e9df;
+  --text-muted: #c79a7a;
+  --border: #3a1c18;
+  --accent-1: #d4a334;
+  --accent-2: #a3211c;
+  --accent-shadow: rgba(163, 33, 28, 0.4);
+  --glass-bg: rgba(60, 30, 24, 0.58);
+  --glass-bg-strong: rgba(68, 34, 27, 0.8);
+  --glass-border: rgba(212, 163, 52, 0.14);
+  --grid-line: rgba(220, 150, 100, 0.07);
+  --glow-1: rgba(212, 163, 52, 0.42);
+  --glow-2: rgba(163, 33, 28, 0.5);
   --sheen: rgba(255, 255, 255, 0.1);
 }
 
@@ -400,6 +542,87 @@ h1 {
 
 .upgrade-btn.inline {
   margin-left: 0.75rem;
+}
+
+/* ---------- Upgrade benefits tooltip ---------- */
+
+.upgrade-tooltip-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.upgrade-tooltip {
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  width: max-content;
+  max-width: 280px;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.upgrade-tooltip-wrap:hover .upgrade-tooltip,
+.upgrade-tooltip-wrap:focus-within .upgrade-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.upgrade-tooltip-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.upgrade-tooltip ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.upgrade-tooltip li {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.upgrade-tooltip li:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Pro-locked features ---------- */
+
+.icon-btn.locked,
+.ghost.locked {
+  opacity: 0.75;
+}
+
+.icon-btn.locked:hover,
+.ghost.locked:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.locked-card {
+  text-align: center;
+}
+
+.locked-card .flashcard-hint {
+  color: var(--warn);
 }
 
 /* ---------- Plan dropdown ---------- */

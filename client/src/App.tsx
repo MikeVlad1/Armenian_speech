@@ -28,7 +28,8 @@ import {
 import { API_BASE, ApiError, cancelSubscription } from './lib/api'
 import { useActiveLanguage } from './lib/useActiveLanguage'
 import { LANGUAGES } from './lib/languages'
-import { LANG_CODES } from './lib/types'
+import { LANG_CODES, type LangCode } from './lib/types'
+import { PRO_BENEFITS } from './lib/plan'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
@@ -54,6 +55,38 @@ function loadTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
   if (stored === 'light' || stored === 'dark') return stored
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+/**
+ * Armenian keeps its original hand-illustrated apricot/pomegranate icons;
+ * the other languages get an emoji glyph tied to a light/dark theme rooted
+ * in that language's own culture (see the per-language palettes in App.css).
+ */
+type ThemeIcon = { kind: 'img'; src: string; alt: string } | { kind: 'emoji'; char: string; alt: string }
+
+function themeIconsFor(lang: LangCode, aprSrc: string, pomSrc: string): { light: ThemeIcon; dark: ThemeIcon } {
+  switch (lang) {
+    case 'hy':
+      return {
+        light: { kind: 'img', src: aprSrc, alt: 'Apricot' },
+        dark: { kind: 'img', src: pomSrc, alt: 'Pomegranate' },
+      }
+    case 'es':
+      return {
+        light: { kind: 'emoji', char: '🍊', alt: 'Orange' },
+        dark: { kind: 'emoji', char: '💃', alt: 'Flamenco dancer' },
+      }
+    case 'fr':
+      return {
+        light: { kind: 'emoji', char: '💜', alt: 'Lavender' },
+        dark: { kind: 'emoji', char: '⚜️', alt: 'Fleur-de-lis' },
+      }
+    case 'ru':
+      return {
+        light: { kind: 'emoji', char: '🌻', alt: 'Sunflower' },
+        dark: { kind: 'emoji', char: '🐻', alt: 'Bear' },
+      }
+  }
 }
 
 /** Matches the .view-out animation duration in App.css. */
@@ -118,6 +151,10 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-lang', lang)
+  }, [lang])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -294,6 +331,9 @@ function App() {
   const streak = useMemo(() => currentStreak(stats), [stats])
   const todayReviews = stats.byDay[todayKey()]?.reviews ?? 0
 
+  const themeIcons = useMemo(() => themeIconsFor(lang, aprImg, pomImg), [lang])
+  const activeIcon = themeIcons[theme]
+
   return (
     <div className="page">
       <div className="app">
@@ -318,15 +358,23 @@ function App() {
                 className="theme-toggle"
                 onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
                 aria-label={
-                  theme === 'dark' ? 'Switch to apricot (light) theme' : 'Switch to pomegranate (dark) theme'
+                  lang === 'hy'
+                    ? theme === 'dark'
+                      ? 'Switch to apricot (light) theme'
+                      : 'Switch to pomegranate (dark) theme'
+                    : theme === 'dark'
+                      ? 'Switch to light theme'
+                      : 'Switch to dark theme'
                 }
-                title={theme === 'dark' ? 'Switch to apricot theme' : 'Switch to pomegranate theme'}
+                title={activeIcon.alt}
               >
-                <img
-                  src={theme === 'dark' ? pomImg : aprImg}
-                  alt={theme === 'dark' ? 'Pomegranate' : 'Apricot'}
-                  className="theme-icon-img"
-                />
+                {activeIcon.kind === 'img' ? (
+                  <img src={activeIcon.src} alt={activeIcon.alt} className="theme-icon-img" />
+                ) : (
+                  <span className="theme-icon-emoji" aria-hidden="true">
+                    {activeIcon.char}
+                  </span>
+                )}
               </button>
             </div>
             <p className="subtitle">Ասա - Armenian for “say.” Translate, hear and practice Eastern Armenian.</p>
@@ -402,9 +450,19 @@ function App() {
           ) : (
             // Free plan has nothing to pick between yet, so this is a plain
             // button straight to checkout - no dropdown, no arrow.
-            <button className="plan-trigger" onClick={() => void handleUpgrade()} disabled={upgrading}>
-              {upgrading ? 'Redirecting…' : 'Upgrade to Pro - $3.99/mo'}
-            </button>
+            <div className="upgrade-tooltip-wrap">
+              <button className="plan-trigger" onClick={() => void handleUpgrade()} disabled={upgrading}>
+                {upgrading ? 'Redirecting…' : 'Upgrade to Pro - $3.99/mo'}
+              </button>
+              <div className="upgrade-tooltip" role="tooltip">
+                <p className="upgrade-tooltip-title">With Pro you get:</p>
+                <ul>
+                  {PRO_BENEFITS.map((benefit) => (
+                    <li key={benefit}>{benefit}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           )}
 
           {!isPro && (
@@ -483,7 +541,9 @@ function App() {
               lang={lang}
               cards={langCards}
               decks={langDecks}
+              isPro={isPro}
               onGrade={gradeCard}
+              onUpgrade={() => void handleUpgrade()}
             />
           )}
 
@@ -493,13 +553,23 @@ function App() {
               lang={lang}
               cards={langCards}
               decks={langDecks}
+              isPro={isPro}
               onAnswer={recordAnswer}
               onLimitReached={() => setLimitReached(true)}
+              onUpgrade={() => void handleUpgrade()}
             />
           )}
 
           {renderedTab === 'quiz' && (
-            <QuizView accessCode={accessCode} lang={lang} cards={langCards} decks={langDecks} onAnswer={recordAnswer} />
+            <QuizView
+              accessCode={accessCode}
+              lang={lang}
+              cards={langCards}
+              decks={langDecks}
+              isPro={isPro}
+              onAnswer={recordAnswer}
+              onUpgrade={() => void handleUpgrade()}
+            />
           )}
 
           {renderedTab === 'library' && (
@@ -508,11 +578,13 @@ function App() {
               lang={lang}
               cards={langCards}
               decks={langDecks}
+              isPro={isPro}
               onAddCards={addCards}
               onDeleteCard={deleteCard}
               onMoveCard={moveCard}
               onCreateDeck={createDeck}
               onDeleteDeck={deleteDeck}
+              onUpgrade={() => void handleUpgrade()}
             />
           )}
         </main>

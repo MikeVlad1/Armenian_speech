@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Card, Deck, LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 import { useAudio } from '../lib/useAudio'
+import { canUseAudio } from '../lib/plan'
 
 type Props = {
   accessCode: string | null
   lang: LangCode
   cards: Card[]
   decks: Deck[]
+  isPro: boolean
   onAnswer: (correct: boolean) => void
+  onUpgrade: () => void
 }
 
 type QuizDirection = 'target-native' | 'native-target'
@@ -58,7 +61,7 @@ function buildQuestions(pool: Card[], allCards: Card[], direction: QuizDirection
   })
 }
 
-export default function QuizView({ accessCode, lang, cards, decks, onAnswer }: Props) {
+export default function QuizView({ accessCode, lang, cards, decks, isPro, onAnswer, onUpgrade }: Props) {
   const [deckId, setDeckId] = useState('all')
   const [direction, setDirection] = useState<QuizDirection | 'mixed'>('target-native')
   const [questions, setQuestions] = useState<Question[] | null>(null)
@@ -184,15 +187,20 @@ export default function QuizView({ accessCode, lang, cards, decks, onAnswer }: P
         </span>
         <p className="flashcard-front">{prompt}</p>
 
-        {question.direction === 'target-native' && (
-          <button
-            className="ghost"
-            onClick={() => audio.play(question.card.target, { lang: question.card.lang })}
-            disabled={audio.playing}
-          >
-            {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
-          </button>
-        )}
+        {question.direction === 'target-native' &&
+          (canUseAudio(question.card, decks, isPro) ? (
+            <button
+              className="ghost"
+              onClick={() => audio.play(question.card.target, { lang: question.card.lang })}
+              disabled={audio.playing}
+            >
+              {audio.playing ? <span className="spinner dark" /> : '🔊'} Listen
+            </button>
+          ) : (
+            <button className="ghost locked" onClick={onUpgrade} title="Upgrade to Pro to hear your own cards">
+              🔒 Listen
+            </button>
+          ))}
 
         <div className="options">
           {question.options.map((option) => {

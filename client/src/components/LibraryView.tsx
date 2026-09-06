@@ -3,6 +3,8 @@ import type { Card, Deck, LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 import { isNew } from '../lib/srs'
 import { useAudio } from '../lib/useAudio'
+import { canUseAudio, customDeckCount, FREE_CUSTOM_DECK_LIMIT } from '../lib/plan'
+import { myPhrasesDeckId } from '../lib/storage'
 import type { NewCardFields } from './TranslateView'
 
 type Props = {
@@ -10,11 +12,13 @@ type Props = {
   lang: LangCode
   cards: Card[]
   decks: Deck[]
+  isPro: boolean
   onAddCards: (cards: NewCardFields[], deckId: string) => void
   onDeleteCard: (id: string) => void
   onMoveCard: (id: string, deckId: string) => void
   onCreateDeck: (name: string) => string
   onDeleteDeck: (id: string) => void
+  onUpgrade: () => void
 }
 
 function dueLabel(card: Card): string {
@@ -33,11 +37,13 @@ export default function LibraryView({
   lang,
   cards,
   decks,
+  isPro,
   onAddCards,
   onDeleteCard,
   onMoveCard,
   onCreateDeck,
   onDeleteDeck,
+  onUpgrade,
 }: Props) {
   const [query, setQuery] = useState('')
   const [deckId, setDeckId] = useState('all')
@@ -88,9 +94,11 @@ export default function LibraryView({
     setShowAdd(false)
   }
 
+  const atDeckLimit = !isPro && customDeckCount(decks, myPhrasesDeckId(lang)) >= FREE_CUSTOM_DECK_LIMIT
+
   function handleCreateDeck() {
     const name = newDeckName.trim()
-    if (!name) return
+    if (!name || atDeckLimit) return
     const id = onCreateDeck(name)
     setNewDeckName('')
     setDeckId(id)
@@ -121,17 +129,23 @@ export default function LibraryView({
         <button className="ghost" onClick={() => setShowAdd((v) => !v)}>
           {showAdd ? 'Cancel' : '＋ Add card'}
         </button>
-        <div className="new-deck">
-          <input
-            value={newDeckName}
-            onChange={(e) => setNewDeckName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateDeck()}
-            placeholder="New deck name…"
-          />
-          <button className="ghost" onClick={handleCreateDeck} disabled={!newDeckName.trim()}>
-            Create
+        {atDeckLimit ? (
+          <button className="ghost locked" onClick={onUpgrade} title="Upgrade to Pro for unlimited custom decks">
+            🔒 New deck (Pro)
           </button>
-        </div>
+        ) : (
+          <div className="new-deck">
+            <input
+              value={newDeckName}
+              onChange={(e) => setNewDeckName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateDeck()}
+              placeholder="New deck name…"
+            />
+            <button className="ghost" onClick={handleCreateDeck} disabled={!newDeckName.trim()}>
+              Create
+            </button>
+          </div>
+        )}
         {activeDeck && !activeDeck.builtin && (
           <button
             className="link danger"
@@ -144,6 +158,13 @@ export default function LibraryView({
           </button>
         )}
       </div>
+
+      {atDeckLimit && (
+        <p className="empty-note">
+          Free plan is limited to {FREE_CUSTOM_DECK_LIMIT} custom decks per language — upgrade to Pro for
+          unlimited decks.
+        </p>
+      )}
 
       {audio.error && <div className="error-banner">{audio.error}</div>}
 
@@ -215,9 +236,23 @@ export default function LibraryView({
                   {dueLabel(card)}
                 </span>
                 <div className="library-buttons">
-                  <button className="icon-btn" onClick={() => audio.play(card.target, { lang: card.lang })} title="Play">
-                    🔊
-                  </button>
+                  {canUseAudio(card, decks, isPro) ? (
+                    <button
+                      className="icon-btn"
+                      onClick={() => audio.play(card.target, { lang: card.lang })}
+                      title="Play"
+                    >
+                      🔊
+                    </button>
+                  ) : (
+                    <button
+                      className="icon-btn locked"
+                      onClick={onUpgrade}
+                      title="Upgrade to Pro to hear your own cards"
+                    >
+                      🔒
+                    </button>
+                  )}
                   <select
                     className="move-select"
                     value={card.deckId}
