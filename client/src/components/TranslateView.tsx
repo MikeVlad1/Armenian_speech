@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Deck, LangCode, TranslateResult } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
-import { ApiError, breakdown, translate, type BreakdownWord } from '../lib/api'
+import { ApiError, breakdown, transcribe, translate, type BreakdownWord } from '../lib/api'
 import { useAudio } from '../lib/useAudio'
+import { useSpeechRecorder } from '../lib/useSpeechRecorder'
 import { myPhrasesDeckId } from '../lib/storage'
 
 const HISTORY_KEY = 'armenian-speaker-history'
@@ -68,8 +69,15 @@ export default function TranslateView({
   const [words, setWords] = useState<BreakdownWord[] | null>(null)
   const [breakingDown, setBreakingDown] = useState(false)
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set())
+  const [transcribing, setTranscribing] = useState(false)
 
   const audio = useAudio(accessCode)
+  const recorder = useSpeechRecorder({ onResult: handleVoiceInput, onError: setError })
+
+  useEffect(() => {
+    return () => recorder.cleanup()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
@@ -101,6 +109,40 @@ export default function TranslateView({
     setToTarget((v) => !v)
     setInput(result?.translated ?? '')
     resetForNewInput()
+  }
+
+  async function handleVoiceInput(wav: Blob) {
+    setTranscribing(true)
+    setError('')
+    try {
+      // Recording captures whichever side is currently being typed, not
+      // always the target language — e.g. with English on the left, the
+      // microphone should recognize English speech, not the target language.
+      const voiceLang = toTarget ? 'en' : lang
+      const { transcript, status } = await transcribe(wav, accessCode, voiceLang)
+      if (!transcript) {
+        setError(
+          status === 'InitialSilenceTimeout'
+            ? "We didn't hear anything - try again a little louder."
+            : "We couldn't make out any speech in that recording. Try again."
+        )
+        return
+      }
+      setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript))
+    } catch (err) {
+      handleError(err)
+    } finally {
+      setTranscribing(false)
+    }
+  }
+
+  function toggleRecording() {
+    if (recorder.recording) {
+      recorder.stop()
+      return
+    }
+    setError('')
+    void recorder.start()
   }
 
   async function handleTranslate() {
@@ -231,10 +273,22 @@ export default function TranslateView({
         />
         <div className="card-footer">
           <span className="hint">⌘/Ctrl + Enter to translate</span>
-          <button className="primary" onClick={handleTranslate} disabled={loading || !input.trim()}>
-            {loading && <span className="spinner" />}
-            {loading ? 'Translating' : 'Translate'}
-          </button>
+          <div className="translate-actions">
+            <button
+              type="button"
+              className={`mic-btn ${recorder.recording ? 'recording' : ''}`}
+              onClick={toggleRecording}
+              disabled={transcribing}
+              aria-label={recorder.recording ? 'Stop recording' : 'Speak instead of typing'}
+              title={recorder.recording ? 'Stop recording' : 'Speak instead of typing'}
+            >
+              {transcribing ? <span className="spinner dark" /> : recorder.recording ? '⏹' : '🎙'}
+            </button>
+            <button className="primary" onClick={handleTranslate} disabled={loading || !input.trim()}>
+              {loading && <span className="spinner" />}
+              {loading ? 'Translating' : 'Translate'}
+            </button>
+          </div>
         </div>
       </div>
 

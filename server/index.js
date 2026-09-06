@@ -388,13 +388,23 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
 // client's header.
 const AZURE_STT_CONTENT_TYPE = 'audio/wav; codecs=audio/pcm; samplerate=16000';
 
+// English is never a learnable target (see LANGUAGES), but the Translator's
+// voice input still needs to recognize English speech whenever the current
+// direction has the user speaking English rather than the target language.
+const ENGLISH_STT_LOCALE = 'en-US';
+
+function sttLocaleFor(lang) {
+  if (lang === 'en') return ENGLISH_STT_LOCALE;
+  return LANGUAGES[lang]?.sttLocale;
+}
+
 app.post(
   '/api/transcribe',
   express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }),
   enforceUsageLimit('transcribe'),
   async (req, res) => {
-    const langConfig = LANGUAGES[req.query.lang];
-    if (!langConfig) {
+    const sttLocale = sttLocaleFor(req.query.lang);
+    if (!sttLocale) {
       return res.status(400).json({ error: 'Unsupported language' });
     }
     if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
@@ -406,7 +416,7 @@ app.post(
 
     try {
       const sttRes = await fetch(
-        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${langConfig.sttLocale}&format=detailed`,
+        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${sttLocale}&format=detailed`,
         {
           method: 'POST',
           headers: {

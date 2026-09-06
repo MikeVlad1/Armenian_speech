@@ -1,4 +1,4 @@
-import type { LangCode, TranslateResult } from './types'
+import type { LangCode, SpeechLang, TranslateResult } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
@@ -57,7 +57,7 @@ export async function speak(
 export async function transcribe(
   audio: Blob,
   accessCode: string | null,
-  lang: LangCode
+  lang: SpeechLang
 ): Promise<{ transcript: string; status: string }> {
   const res = await fetch(`${API_BASE}/api/transcribe?lang=${lang}`, {
     method: 'POST',

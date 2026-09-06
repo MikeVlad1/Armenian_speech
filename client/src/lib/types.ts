@@ -7,6 +7,13 @@ export type TranslateResult = {
 export type LangCode = 'hy' | 'es' | 'fr' | 'ru'
 export const LANG_CODES: LangCode[] = ['hy', 'es', 'fr', 'ru']
 
+/**
+ * Speech recognition needs to name English too — English isn't a learnable
+ * LangCode, but the Translator's voice input records English speech whenever
+ * the current direction has the user speaking English.
+ */
+export type SpeechLang = LangCode | 'en'
+
 export type Deck = {
   id: string
   lang: LangCode

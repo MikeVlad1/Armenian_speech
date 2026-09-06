@@ -674,6 +674,36 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
+.translate-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  font-size: 1.05rem;
+  color: var(--text);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+}
+
+.mic-btn:not(:disabled):hover {
+  border-color: var(--accent-1);
+}
+
+.mic-btn.recording {
+  background: linear-gradient(135deg, #e0483f, #b3261e);
+  border-color: transparent;
+  color: #fff;
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Card, Deck, LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 import { ApiError, transcribe } from '../lib/api'
 import { compareWords, scoreLabel, similarity, type WordComparison } from '../lib/text'
 import { useAudio } from '../lib/useAudio'
-import { encodeWav16kMono } from '../lib/wavEncode'
+import { useSpeechRecorder } from '../lib/useSpeechRecorder'
 import { KEYBOARDS } from '../data/keyboards'
 import Keyboard from './Keyboard'
 
@@ -18,18 +18,6 @@ type Props = {
 }
 
 type Mode = 'speaking' | 'listening'
-
-/**
- * Recording format doesn't need to match what Azure accepts - checkRecording
- * converts to WAV before upload (see lib/wavEncode.ts) - so this just picks
- * whatever the browser itself can record.
- */
-const PREFERRED_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
-
-function pickMimeType(): string | null {
-  if (typeof MediaRecorder === 'undefined') return null
-  return PREFERRED_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) ?? null
-}
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items]
@@ -48,7 +36,6 @@ export default function PracticeView({ accessCode, lang, cards, decks, onAnswer,
   const [error, setError] = useState('')
 
   // Speaking state
-  const [recording, setRecording] = useState(false)
   const [checking, setChecking] = useState(false)
   const [transcript, setTranscript] = useState<string | null>(null)
   const [score, setScore] = useState<number | null>(null)
@@ -59,12 +46,8 @@ export default function PracticeView({ accessCode, lang, cards, decks, onAnswer,
   const [listenChecked, setListenChecked] = useState(false)
   const [showKeyboard, setShowKeyboard] = useState(true)
 
-  const recorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<BlobPart[]>([])
-  const streamRef = useRef<MediaStream | null>(null)
-
   const audio = useAudio(accessCode)
-  const mimeType = useMemo(pickMimeType, [])
+  const recorder = useSpeechRecorder({ onResult: checkRecording, onError: setError })
 
   const pool = useMemo(
     () => (deckId === 'all' ? cards : cards.filter((c) => c.deckId === deckId)),
@@ -79,9 +62,8 @@ export default function PracticeView({ accessCode, lang, cards, decks, onAnswer,
   }, [pool.length, deckId, mode, lang])
 
   useEffect(() => {
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-    }
+    return () => recorder.cleanup()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const current = order[index]
@@ -102,51 +84,16 @@ export default function PracticeView({ accessCode, lang, cards, decks, onAnswer,
     setIndex((i) => (i + 1 >= order.length ? 0 : i + 1))
   }
 
-  async function startRecording() {
-    if (!mimeType) {
-      setError('This browser cannot record audio in a format the speech service accepts. Try Chrome, Edge, or Firefox.')
-      return
-    }
+  function startRecording() {
     setError('')
     resetAttempt()
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      const recorder = new MediaRecorder(stream, { mimeType })
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-        void checkRecording(new Blob(chunksRef.current, { type: mimeType }))
-      }
-      recorderRef.current = recorder
-      recorder.start()
-      setRecording(true)
-    } catch {
-      setError('Microphone access was blocked. Allow it in your browser settings to practice speaking.')
-    }
+    void recorder.start()
   }
 
-  function stopRecording() {
-    recorderRef.current?.stop()
-    recorderRef.current = null
-    setRecording(false)
-  }
-
-  async function checkRecording(blob: Blob) {
+  async function checkRecording(wav: Blob) {
     if (!current) return
     setChecking(true)
     try {
-      let wav: Blob
-      try {
-        wav = await encodeWav16kMono(blob)
-      } catch {
-        setError('Could not process that recording. Please try again.')
-        return
-      }
       const { transcript: heard, status } = await transcribe(wav, accessCode, lang)
       if (!heard) {
         setTranscript('')
@@ -246,15 +193,15 @@ export default function PracticeView({ accessCode, lang, cards, decks, onAnswer,
               </div>
 
               <button
-                className={`record-btn ${recording ? 'recording' : ''}`}
-                onClick={recording ? stopRecording : startRecording}
+                className={`record-btn ${recorder.recording ? 'recording' : ''}`}
+                onClick={recorder.recording ? recorder.stop : startRecording}
                 disabled={checking}
               >
                 {checking ? (
                   <>
                     <span className="spinner" /> Checking…
                   </>
-                ) : recording ? (
+                ) : recorder.recording ? (
                   '⏹ Stop & check'
                 ) : (
                   '🎙 Record'
