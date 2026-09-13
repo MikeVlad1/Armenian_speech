@@ -382,7 +382,7 @@ function App() {
         <div className="hero">
           <header>
             <div className="brand-row">
-              <h1>{LANGUAGES[lang].sayWord.latin}</h1>
+              <h1>ASA</h1>
               <div className="lang-picker-wrap">
                 <select
                   className={`lang-picker ${showLangHint ? 'hinted' : ''}`}
