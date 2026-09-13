@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Deck, LangCode, TranslateResult } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
-import { ApiError, breakdown, transcribe, translate, type BreakdownWord } from '../lib/api'
+import { ApiError, breakdown, transcribe, translate, transliterate, type BreakdownWord } from '../lib/api'
 import { useAudio } from '../lib/useAudio'
 import { useSpeechRecorder } from '../lib/useSpeechRecorder'
 import { myPhrasesDeckId } from '../lib/storage'
@@ -70,6 +70,7 @@ export default function TranslateView({
   const [breakingDown, setBreakingDown] = useState(false)
   const [savedWords, setSavedWords] = useState<Set<string>>(new Set())
   const [transcribing, setTranscribing] = useState(false)
+  const [transliterating, setTransliterating] = useState(false)
 
   const audio = useAudio(accessCode)
   const recorder = useSpeechRecorder({ onResult: handleVoiceInput, onError: setError })
@@ -103,6 +104,7 @@ export default function TranslateView({
     setWords(null)
     setSaved(false)
     setSavedWords(new Set())
+    setTransliterating(false)
   }
 
   function swapDirection() {
@@ -152,12 +154,33 @@ export default function TranslateView({
     try {
       const data = await translate(input, lang, toTarget, accessCode)
       setResult(data)
+      const historyId = crypto.randomUUID()
       setHistory((prev) =>
-        [
-          { ...data, id: crypto.randomUUID(), lang, toTarget, input, timestamp: Date.now() },
-          ...prev,
-        ].slice(0, HISTORY_LIMIT)
+        [{ ...data, id: historyId, lang, toTarget, input, timestamp: Date.now() }, ...prev].slice(
+          0,
+          HISTORY_LIMIT
+        )
       )
+
+      // Fetched as a fast follow-up rather than as part of the translation
+      // itself - Armenian/Russian transliteration routinely takes as long to
+      // generate as the translation, so waiting for both together left the
+      // screen blank for a long time on longer phrases. Not awaited: the
+      // translation above is already on screen, this just fills in a line.
+      if (LANGUAGES[lang].needsTransliteration) {
+        setTransliterating(true)
+        const sourceText = toTarget ? data.translated : input
+        transliterate(sourceText, lang, accessCode)
+          .then(({ transliteration }) => {
+            setResult((prev) => (prev ? { ...prev, transliteration } : prev))
+            setHistory((prev) => prev.map((e) => (e.id === historyId ? { ...e, transliteration } : e)))
+          })
+          .catch(() => {
+            // Best-effort - the translation itself already succeeded and is
+            // on screen; a failed transliteration just leaves that line blank.
+          })
+          .finally(() => setTransliterating(false))
+      }
     } catch (err) {
       handleError(err)
     } finally {
@@ -297,7 +320,11 @@ export default function TranslateView({
       {result && (
         <div className="card result-card">
           <p className="translated">{result.translated}</p>
-          {result.transliteration && <p className="transliteration">{result.transliteration}</p>}
+          {result.transliteration ? (
+            <p className="transliteration">{result.transliteration}</p>
+          ) : (
+            transliterating && <p className="transliteration transliteration-loading">Sounding it out…</p>
+          )}
           {result.notes && <p className="notes">{result.notes}</p>}
 
           <div className="result-actions">

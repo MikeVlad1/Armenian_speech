@@ -23,6 +23,7 @@ const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
 const FREE_DAILY_LIMITS = {
   translate: 15,
+  transliterate: 15,
   speak: 30,
   transcribe: 20,
   breakdown: 10,
@@ -133,6 +134,7 @@ const LANGUAGES = {
     sttLocale: 'hy-AM',
     voices: { female: 'hy-AM-AnahitNeural', male: 'hy-AM-HaykNeural' },
     needsKeyboard: true,
+    needsTransliteration: true,
   },
   es: {
     name: 'Spanish',
@@ -144,6 +146,7 @@ const LANGUAGES = {
     // before relying on these — picked from memory, not confirmed live.
     voices: { female: 'es-ES-Neural2-A', male: 'es-ES-Neural2-B' },
     needsKeyboard: false,
+    needsTransliteration: false,
   },
   fr: {
     name: 'French',
@@ -153,6 +156,7 @@ const LANGUAGES = {
     sttLocale: 'fr-FR',
     voices: { female: 'fr-FR-Neural2-A', male: 'fr-FR-Neural2-B' },
     needsKeyboard: false,
+    needsTransliteration: false,
   },
   ru: {
     name: 'Russian',
@@ -163,6 +167,7 @@ const LANGUAGES = {
     // Russian may not have Neural2 voices — verify, Wavenet is the safe fallback.
     voices: { female: 'ru-RU-Wavenet-C', male: 'ru-RU-Wavenet-D' },
     needsKeyboard: true,
+    needsTransliteration: true,
   },
   az: {
     name: 'Azerbaijani',
@@ -172,6 +177,7 @@ const LANGUAGES = {
     sttLocale: 'az-AZ',
     voices: { female: 'az-AZ-BanuNeural', male: 'az-AZ-BabekNeural' },
     needsKeyboard: false,
+    needsTransliteration: false,
   },
 };
 
@@ -187,7 +193,6 @@ Rules:
 - Produce natural, everyday ${name} a native speaker would actually use, not a stiff literal translation.
 - Apply correct ${name} case, verb conjugation, and word order — do not just substitute words one-for-one from English.
 - If the English input is ambiguous (e.g. missing context needed to pick a verb form or pronoun), choose the most common/neutral interpretation.
-- "transliteration" is a phonetic rendering of the ${name} translation using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in ${name} script, Cyrillic or any other script, and never carry ${name} punctuation across. If ${name} is already written in the Latin alphabet, set "transliteration" to an empty string — it would just repeat "translated".
 - "notes" is a short note on any grammar choice worth flagging, or an empty string if there's nothing worth noting. It must be written in English — the reader doesn't know ${name} yet, that's why they're translating into it, so a note in ${name} is unreadable to them. Quoting a specific ${name} word or phrase inline is fine; the explanation around it must still be in English.`;
 }
 
@@ -202,8 +207,24 @@ ${SHARED_RULES}
 Rules:
 - Produce natural English a native speaker would actually use, not a stiff literal translation.
 - If the ${name} input is ambiguous, choose the most common/neutral interpretation.
-- "transliteration" is a phonetic rendering of the ORIGINAL ${name} input using ONLY basic Latin letters a-z, spaces and apostrophes. Never mix in ${name} script, Cyrillic or any other script, and never carry ${name} punctuation across. If ${name} is already written in the Latin alphabet, set "transliteration" to an empty string — it would just repeat the source.
 - "notes" is a short note worth flagging, or an empty string if there's nothing worth noting. It must be written in English, matching "translated" — not ${name}. Quoting a specific ${name} word or phrase from the source inline is fine; the explanation around it must still be in English.`;
+}
+
+/**
+ * A separate, focused prompt for transliteration only - run on a smaller/
+ * faster model after the main translation, rather than asking one big Sonnet
+ * call to produce translation + transliteration + notes together. For
+ * non-Latin-script languages, transliteration routinely runs as long as the
+ * translation itself, and Armenian in particular generates markedly slower
+ * per token than Latin-script languages - together that made long Armenian
+ * translations take 15-30+ seconds. Splitting the mechanical "spell this out
+ * phonetically" step onto Haiku cuts that in roughly half.
+ */
+function buildTransliterationPrompt(langConfig) {
+  const { name, nativeName } = langConfig;
+  return `You are given a phrase written in ${name} (${nativeName}), in its native script.
+
+Produce ONLY a phonetic transliteration of it using basic Latin letters a-z, spaces and apostrophes - nothing else. Never mix in ${name} script or any other script, and never carry over ${name} punctuation. Follow the common informal romanization a language learner would recognize, not a strict academic transliteration standard.`;
 }
 
 /**
@@ -241,10 +262,16 @@ const TRANSLATION_SCHEMA = {
   type: 'object',
   properties: {
     translated: { type: 'string' },
-    transliteration: { type: 'string' },
     notes: { type: 'string' },
   },
-  required: ['translated', 'transliteration', 'notes'],
+  required: ['translated', 'notes'],
+  additionalProperties: false,
+};
+
+const TRANSLITERATION_SCHEMA = {
+  type: 'object',
+  properties: { transliteration: { type: 'string' } },
+  required: ['transliteration'],
   additionalProperties: false,
 };
 
@@ -312,14 +339,59 @@ app.post('/api/translate', enforceUsageLimit('translate'), async (req, res) => {
       return res.status(422).json({ error: 'Nothing translatable was found in that text.' });
     }
 
+    // Transliteration is deliberately not requested here at all (see
+    // /api/transliterate below) - the client fetches it as a fast follow-up
+    // once the translation itself is already on screen.
     res.json({
       translated: result.translated,
-      transliteration: normalizeTransliteration(result.transliteration),
+      transliteration: '',
       notes: result.notes ?? '',
     });
   } catch (err) {
     console.error('translate error', err);
     res.status(502).json({ error: 'Translation request failed' });
+  }
+});
+
+/**
+ * A separate endpoint the client calls right after /api/translate resolves,
+ * rather than one call doing translation + transliteration + notes together.
+ * For non-Latin-script languages, transliteration routinely runs as long as
+ * the translation itself, and Armenian in particular generates markedly
+ * slower per token than Latin-script languages - together that made long
+ * Armenian translations take 15-30+ seconds with nothing visible the whole
+ * time. Splitting it out means the translation appears as soon as it's
+ * ready, and the pronunciation line fills in a moment later on its own -
+ * same total work, but the user isn't staring at a blank screen for it.
+ */
+app.post('/api/transliterate', enforceUsageLimit('transliterate'), async (req, res) => {
+  const { text, lang } = req.body ?? {};
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const langConfig = LANGUAGES[lang];
+  if (!langConfig || !langConfig.needsTransliteration) {
+    return res.status(400).json({ error: 'Unsupported language' });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY' });
+  }
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 256,
+      output_config: { format: { type: 'json_schema', schema: TRANSLITERATION_SCHEMA } },
+      system: buildTransliterationPrompt(langConfig),
+      messages: [{ role: 'user', content: wrapSource(text) }],
+    });
+
+    const textBlock = message.content.find((block) => block.type === 'text');
+    const parsed = textBlock ? JSON.parse(textBlock.text) : null;
+    res.json({ transliteration: normalizeTransliteration(parsed?.transliteration) });
+  } catch (err) {
+    console.error('transliterate error', err);
+    res.status(502).json({ error: 'Transliteration request failed' });
   }
 });
 

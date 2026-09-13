@@ -35,6 +35,25 @@ export async function translate(
   return res.json()
 }
 
+/**
+ * Fetched as a fast follow-up after translate() resolves, not requested
+ * together with it - see the comment on /api/transliterate in server/index.js
+ * for why splitting this out matters for perceived speed on Armenian/Russian.
+ */
+export async function transliterate(
+  text: string,
+  lang: LangCode,
+  accessCode: string | null
+): Promise<{ transliteration: string }> {
+  const res = await fetch(`${API_BASE}/api/transliterate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(accessCode) },
+    body: JSON.stringify({ text, lang }),
+  })
+  if (!res.ok) await throwForResponse(res, 'Transliteration failed')
+  return res.json()
+}
+
 export async function speak(
   text: string,
   accessCode: string | null,
