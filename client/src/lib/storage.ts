@@ -6,7 +6,7 @@ import { STARTER_DECKS } from '../data/starterDecks'
 const DECKS_KEY = 'asa.decks.v1'
 const CARDS_KEY = 'asa.cards.v1'
 const STATS_KEY = 'asa.stats.v1'
-const SEEDED_KEY = 'asa.seeded.v1'
+export const SEEDED_KEY = 'asa.seeded.v1'
 
 function read<T>(key: string, fallback: T): T {
   try {

@@ -10,6 +10,7 @@ import QuizView from './components/QuizView'
 import PracticeView from './components/PracticeView'
 import AccountBar from './components/AccountBar'
 import DonateModal from './components/DonateModal'
+import LanguageOnboarding from './components/LanguageOnboarding'
 import { useSync } from './lib/useSync'
 import type { SyncPayload } from './lib/sync'
 
@@ -24,6 +25,7 @@ import {
   recordReview,
   currentStreak,
   todayKey,
+  SEEDED_KEY,
 } from './lib/storage'
 import { API_BASE, ApiError, cancelSubscription } from './lib/api'
 import { useActiveLanguage } from './lib/useActiveLanguage'
@@ -33,9 +35,18 @@ import { PRO_BENEFITS } from './lib/plan'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
+const LANG_HINT_KEY = 'armenian-speaker-seen-lang-hint'
+const TAB_KEY = 'armenian-speaker-tab'
 
 type Theme = 'light' | 'dark'
 type Tab = 'translate' | 'library' | 'flashcards' | 'quiz' | 'practice'
+
+const TAB_IDS: Tab[] = ['translate', 'library', 'flashcards', 'quiz', 'practice']
+
+function loadTab(): Tab {
+  const stored = localStorage.getItem(TAB_KEY)
+  return (TAB_IDS as string[]).includes(stored ?? '') ? (stored as Tab) : 'translate'
+}
 
 /**
  * Single-task views that read better narrow and centred — a flashcard or quiz
@@ -93,12 +104,32 @@ function themeIconsFor(lang: LangCode, aprSrc: string, pomSrc: string): { light:
 const VIEW_FADE_MS = 160
 
 function App() {
+  // Captured before ensureSeeded() (below) writes SEEDED_KEY for the first
+  // time - this is the only moment "has this browser ever opened ASA before"
+  // is knowable. (SEEDED_KEY's value is either the legacy 'true' or a JSON
+  // array of seeded language codes - never absent once ensureSeeded has run,
+  // so absence is what actually means "first visit," not either value.)
+  const [isFirstVisit] = useState(() => localStorage.getItem(SEEDED_KEY) === null)
+  const [showOnboarding, setShowOnboarding] = useState(isFirstVisit)
+
   const [theme, setTheme] = useState<Theme>(loadTheme)
-  const [tab, setTab] = useState<Tab>('translate')
+  const [tab, setTab] = useState<Tab>(loadTab)
+  // First-visit coachmark pointing at the language switcher, so newcomers who
+  // land expecting an Armenian-only tool notice the other languages exist.
+  // Skipped for brand-new visitors - the onboarding wheel below already
+  // makes the point, and showing both back to back would be repetitive.
+  const [showLangHint, setShowLangHint] = useState(
+    () => !isFirstVisit && localStorage.getItem(LANG_HINT_KEY) !== 'true'
+  )
+
+  const dismissLangHint = useCallback(() => {
+    setShowLangHint(false)
+    localStorage.setItem(LANG_HINT_KEY, 'true')
+  }, [])
   // The nav highlights the new tab immediately, while the panel keeps rendering
   // the old view until it has faded out — otherwise the content would swap
   // mid-fade and the transition would read as a flicker.
-  const [renderedTab, setRenderedTab] = useState<Tab>('translate')
+  const [renderedTab, setRenderedTab] = useState<Tab>(tab)
   const [leaving, setLeaving] = useState(false)
 
   const selectTab = useCallback(
@@ -106,6 +137,7 @@ function App() {
       if (next === tab) return
       setTab(next)
       setLeaving(true)
+      localStorage.setItem(TAB_KEY, next)
     },
     [tab]
   )
@@ -140,6 +172,16 @@ function App() {
   const [stats, setStats] = useState<Stats>(loadStats)
 
   const [lang, setLang] = useActiveLanguage()
+
+  const handleOnboardingSelect = useCallback(
+    (picked: LangCode) => {
+      setLang(picked)
+      setShowOnboarding(false)
+      dismissLangHint()
+    },
+    [setLang, dismissLangHint]
+  )
+
   const langDecks = useMemo(() => decks.filter((d) => d.lang === lang), [decks, lang])
   const langCards = useMemo(() => cards.filter((c) => c.lang === lang), [cards, lang])
 
@@ -340,20 +382,37 @@ function App() {
         <div className="hero">
           <header>
             <div className="brand-row">
-              <h1>ASA</h1>
-              <select
-                className="lang-picker"
-                value={lang}
-                onChange={(e) => setLang(e.target.value as typeof lang)}
-                aria-label="Learning language"
-                title="Language you're learning"
-              >
-                {LANG_CODES.map((code) => (
-                  <option key={code} value={code}>
-                    {LANGUAGES[code].name}
-                  </option>
-                ))}
-              </select>
+              <h1>{LANGUAGES[lang].sayWord.latin}</h1>
+              <div className="lang-picker-wrap">
+                <select
+                  className={`lang-picker ${showLangHint ? 'hinted' : ''}`}
+                  value={lang}
+                  onChange={(e) => {
+                    setLang(e.target.value as typeof lang)
+                    dismissLangHint()
+                  }}
+                  aria-label="Learning language"
+                  title="Language you're learning"
+                >
+                  {LANG_CODES.map((code) => (
+                    <option key={code} value={code}>
+                      {LANGUAGES[code].name}
+                    </option>
+                  ))}
+                </select>
+
+                {showLangHint && (
+                  <div className="lang-hint" role="status">
+                    <p>
+                      <strong>🌍 Did you know?</strong> ASA isn't just for Armenian anymore — pick Spanish,
+                      French or Russian right here to switch what you're learning.
+                    </p>
+                    <button className="lang-hint-dismiss" onClick={dismissLangHint}>
+                      Got it
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 className="theme-toggle"
                 onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -377,7 +436,10 @@ function App() {
                 )}
               </button>
             </div>
-            <p className="subtitle">Ասա - Armenian for “say.” Translate, hear and practice Eastern Armenian.</p>
+            <p className="subtitle">
+              {LANGUAGES[lang].sayWord.native} - {LANGUAGES[lang].name} for “say.” Translate, hear and practice{' '}
+              {lang === 'hy' ? 'Eastern Armenian' : LANGUAGES[lang].name}.
+            </p>
           </header>
 
           <div className="stat-strip">
@@ -604,6 +666,8 @@ function App() {
 
         {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
       </div>
+
+      {showOnboarding && <LanguageOnboarding onSelect={handleOnboardingSelect} />}
     </div>
   )
 }
