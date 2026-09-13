@@ -36,7 +36,6 @@ import { PRO_BENEFITS } from './lib/plan'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
-const LANG_HINT_KEY = 'armenian-speaker-seen-lang-hint'
 const TAB_KEY = 'armenian-speaker-tab'
 
 type Theme = 'light' | 'dark'
@@ -121,18 +120,6 @@ function App() {
 
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [tab, setTab] = useState<Tab>(loadTab)
-  // First-visit coachmark pointing at the language switcher, so newcomers who
-  // land expecting an Armenian-only tool notice the other languages exist.
-  // Skipped for brand-new visitors - the onboarding wheel below already
-  // makes the point, and showing both back to back would be repetitive.
-  const [showLangHint, setShowLangHint] = useState(
-    () => !isFirstVisit && localStorage.getItem(LANG_HINT_KEY) !== 'true'
-  )
-
-  const dismissLangHint = useCallback(() => {
-    setShowLangHint(false)
-    localStorage.setItem(LANG_HINT_KEY, 'true')
-  }, [])
   // The nav highlights the new tab immediately, while the panel keeps rendering
   // the old view until it has faded out — otherwise the content would swap
   // mid-fade and the transition would read as a flicker.
@@ -184,9 +171,8 @@ function App() {
     (picked: LangCode) => {
       setLang(picked)
       setShowOnboarding(false)
-      dismissLangHint()
     },
-    [setLang, dismissLangHint]
+    [setLang]
   )
 
   const langDecks = useMemo(() => decks.filter((d) => d.lang === lang), [decks, lang])
@@ -392,12 +378,9 @@ function App() {
               <h1>ASA</h1>
               <div className="lang-picker-wrap">
                 <select
-                  className={`lang-picker ${showLangHint ? 'hinted' : ''}`}
+                  className="lang-picker"
                   value={lang}
-                  onChange={(e) => {
-                    setLang(e.target.value as typeof lang)
-                    dismissLangHint()
-                  }}
+                  onChange={(e) => setLang(e.target.value as typeof lang)}
                   aria-label="Learning language"
                   title="Language you're learning"
                 >
@@ -407,18 +390,6 @@ function App() {
                     </option>
                   ))}
                 </select>
-
-                {showLangHint && (
-                  <div className="lang-hint" role="status">
-                    <p>
-                      <strong>🌍 Did you know?</strong> ASA isn't just for Armenian anymore — pick Spanish,
-                      French or Russian right here to switch what you're learning.
-                    </p>
-                    <button className="lang-hint-dismiss" onClick={dismissLangHint}>
-                      Got it
-                    </button>
-                  </div>
-                )}
               </div>
               <button
                 className="theme-toggle"

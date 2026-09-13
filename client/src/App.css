@@ -456,13 +456,6 @@ body {
   padding: 1.6rem 1.9rem;
   border-radius: 28px;
   margin-bottom: 1rem;
-  /*
-   * backdrop-filter (from the shared glass rule) already makes .hero its own
-   * stacking context; without an explicit z-index here that whole context —
-   * including the language coachmark, which overflows .hero's box — would
-   * paint *below* .tab-bar, a later sibling at the default stacking level.
-   */
-  z-index: 2;
 }
 
 header {
@@ -494,70 +487,6 @@ header {
   border: 1px solid var(--glass-border);
   border-radius: 8px;
   outline: none;
-}
-
-/* Draws the eye to the picker while the first-visit hint is showing. */
-.lang-picker.hinted {
-  animation: lang-picker-glow 1.8s ease-in-out infinite;
-}
-
-@keyframes lang-picker-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 var(--accent-shadow);
-  }
-  50% {
-    box-shadow: 0 0 0 6px var(--accent-shadow);
-  }
-}
-
-/* ---------- First-visit language coachmark ---------- */
-
-.lang-hint {
-  position: absolute;
-  top: calc(100% + 0.9rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
-  width: 240px;
-  padding: 0.85rem 0.9rem 0.75rem;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-  box-shadow: var(--glass-shadow-lg);
-  animation: view-in 0.3s var(--spring);
-}
-
-/* Centered under the dropdown, not just the wrapper, so the arrow lines up
-   with the control itself even though the bubble is wider than it. */
-.lang-hint::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 9px solid transparent;
-  border-bottom-color: var(--accent-1);
-  filter: drop-shadow(0 -2px 3px rgba(0, 0, 0, 0.12));
-}
-
-.lang-hint p {
-  margin: 0 0 0.6rem;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  color: white;
-}
-
-.lang-hint-dismiss {
-  padding: 0.3rem 0.75rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--accent-2);
-  background: white;
-  border-radius: 999px;
-}
-
-.lang-hint-dismiss:hover {
-  transform: translateY(-1px);
 }
 
 .theme-toggle {
@@ -2306,7 +2235,6 @@ button:disabled {
 /* ---------- First-visit "what are we learning" wheel ---------- */
 
 .onboarding-backdrop {
-  /* Above the theme-toggle/lang-hint's z-index:30 - this owns the screen. */
   z-index: 60;
 }
 
