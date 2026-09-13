@@ -3,6 +3,7 @@ import type { Card, Deck, LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 import { useAudio } from '../lib/useAudio'
 import { canUseAudio } from '../lib/plan'
+import { pickDistractors, shuffle } from '../lib/quiz'
 
 type Props = {
   accessCode: string | null
@@ -26,15 +27,6 @@ type Question = {
 const QUIZ_LENGTH = 10
 const OPTION_COUNT = 4
 
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
-  }
-  return copy
-}
-
 function buildQuestions(pool: Card[], allCards: Card[], direction: QuizDirection | 'mixed'): Question[] {
   const selected = shuffle(pool).slice(0, QUIZ_LENGTH)
 
@@ -43,19 +35,7 @@ function buildQuestions(pool: Card[], allCards: Card[], direction: QuizDirection
       direction === 'mixed' ? (Math.random() < 0.5 ? 'target-native' : 'native-target') : direction
     const valueOf = (c: Card) => (dir === 'target-native' ? c.native : c.target)
     const answer = valueOf(card)
-
-    // Prefer distractors from the same deck; fall back to the full collection
-    // so small decks still produce four plausible options.
-    const sameDeck = pool.filter((c) => c.id !== card.id && valueOf(c) !== answer)
-    const fallback = allCards.filter((c) => c.id !== card.id && valueOf(c) !== answer)
-    const distractorSource = sameDeck.length >= OPTION_COUNT - 1 ? sameDeck : fallback
-
-    const distractors: string[] = []
-    for (const candidate of shuffle(distractorSource)) {
-      const value = valueOf(candidate)
-      if (!distractors.includes(value)) distractors.push(value)
-      if (distractors.length === OPTION_COUNT - 1) break
-    }
+    const distractors = pickDistractors(pool, allCards, card.id, valueOf, answer, OPTION_COUNT - 1)
 
     return { card, direction: dir, answer, options: shuffle([answer, ...distractors]) }
   })

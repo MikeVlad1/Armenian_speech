@@ -1685,6 +1685,69 @@ button:disabled {
   border-top: 1px dashed var(--border);
 }
 
+/* ---------- Lessons ---------- */
+
+.lesson-exercise {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.word-order-assembled,
+.word-order-bank {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.8rem;
+}
+
+.word-order-assembled {
+  padding-bottom: 0.6rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.word-order-placeholder {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  align-self: center;
+}
+
+.word-tile {
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.word-tile:not(:disabled):hover {
+  border-color: var(--accent-1);
+  transform: translateY(-1px);
+}
+
+.word-tile.bank {
+  background: var(--glass-bg);
+}
+
+.word-tile.correct {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.word-tile.wrong {
+  border-color: var(--danger-text);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 /* ---------- Practice ---------- */
 
 .practice-card {

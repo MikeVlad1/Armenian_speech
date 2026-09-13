@@ -8,6 +8,7 @@ import LibraryView from './components/LibraryView'
 import FlashcardsView from './components/FlashcardsView'
 import QuizView from './components/QuizView'
 import PracticeView from './components/PracticeView'
+import LessonsView from './components/LessonsView'
 import AccountBar from './components/AccountBar'
 import DonateModal from './components/DonateModal'
 import LanguageOnboarding from './components/LanguageOnboarding'
@@ -39,9 +40,9 @@ const LANG_HINT_KEY = 'armenian-speaker-seen-lang-hint'
 const TAB_KEY = 'armenian-speaker-tab'
 
 type Theme = 'light' | 'dark'
-type Tab = 'translate' | 'library' | 'flashcards' | 'quiz' | 'practice'
+type Tab = 'translate' | 'lessons' | 'library' | 'flashcards' | 'quiz' | 'practice'
 
-const TAB_IDS: Tab[] = ['translate', 'library', 'flashcards', 'quiz', 'practice']
+const TAB_IDS: Tab[] = ['translate', 'lessons', 'library', 'flashcards', 'quiz', 'practice']
 
 function loadTab(): Tab {
   const stored = localStorage.getItem(TAB_KEY)
@@ -52,10 +53,11 @@ function loadTab(): Tab {
  * Single-task views that read better narrow and centred — a flashcard or quiz
  * question stretched across a wide screen is harder to scan, not easier.
  */
-const FOCUS_TABS = new Set<Tab>(['flashcards', 'quiz', 'practice'])
+const FOCUS_TABS = new Set<Tab>(['lessons', 'flashcards', 'quiz', 'practice'])
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'translate', label: 'Translate', icon: '⇄' },
+  { id: 'lessons', label: 'Lessons', icon: '🎓' },
   { id: 'flashcards', label: 'Cards', icon: '🗂' },
   { id: 'practice', label: 'Practice', icon: '🎙' },
   { id: 'quiz', label: 'Quiz', icon: '✓' },
@@ -599,6 +601,17 @@ function App() {
               onAddCards={addCards}
               onLimitReached={() => setLimitReached(true)}
               onStudy={() => selectTab('flashcards')}
+            />
+          )}
+
+          {renderedTab === 'lessons' && (
+            <LessonsView
+              accessCode={accessCode}
+              lang={lang}
+              cards={langCards}
+              decks={langDecks}
+              isPro={isPro}
+              onAnswer={recordAnswer}
             />
           )}
 
