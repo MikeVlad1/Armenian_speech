@@ -356,9 +356,73 @@ const RU_DECKS: StarterDeck[] = [
   },
 ]
 
+const AZ_DECKS: StarterDeck[] = [
+  {
+    id: 'starter-az-greetings',
+    name: 'Greetings & Politeness',
+    description: 'The first phrases to learn in any language.',
+    cards: [
+      { target: 'Salam', native: 'Hello', transliteration: '' },
+      { target: 'Necəsən?', native: 'How are you? (informal)', transliteration: '' },
+      { target: 'Sabahın xeyir', native: 'Good morning', transliteration: '' },
+      { target: 'Axşamın xeyir', native: 'Good evening', transliteration: '' },
+      { target: 'Gecən xeyrə qalsın', native: 'Good night', transliteration: '' },
+      { target: 'Görüşərik', native: 'Goodbye', transliteration: '', notes: 'Literally "we\'ll see each other" - see you later.' },
+      { target: 'Sağ ol', native: 'Thank you', transliteration: '', notes: 'Informal, most common everyday form.' },
+      { target: 'Zəhmət olmasa', native: 'Please', transliteration: '' },
+      { target: 'Dəyməz', native: "You're welcome", transliteration: '', notes: 'Literally "it\'s not worth it."' },
+      { target: 'Bəli', native: 'Yes', transliteration: '' },
+      { target: 'Yox', native: 'No', transliteration: '' },
+      { target: 'Bağışlayın', native: 'Excuse me / Sorry', transliteration: '' },
+      { target: 'Yaxşıyam', native: "I'm well", transliteration: '' },
+      { target: 'Başa düşmürəm', native: "I don't understand", transliteration: '' },
+    ],
+  },
+  {
+    id: 'starter-az-numbers',
+    name: 'Numbers 1-12',
+    description: 'Counting, prices, times and quantities.',
+    cards: [
+      { target: 'bir', native: 'one', transliteration: '' },
+      { target: 'iki', native: 'two', transliteration: '' },
+      { target: 'üç', native: 'three', transliteration: '' },
+      { target: 'dörd', native: 'four', transliteration: '' },
+      { target: 'beş', native: 'five', transliteration: '' },
+      { target: 'altı', native: 'six', transliteration: '' },
+      { target: 'yeddi', native: 'seven', transliteration: '' },
+      { target: 'səkkiz', native: 'eight', transliteration: '' },
+      { target: 'doqquz', native: 'nine', transliteration: '' },
+      { target: 'on', native: 'ten', transliteration: '' },
+      { target: 'on bir', native: 'eleven', transliteration: '' },
+      { target: 'on iki', native: 'twelve', transliteration: '' },
+    ],
+  },
+  {
+    id: 'starter-az-food',
+    name: 'Food & Dining',
+    description: 'Ordering, eating out and grocery basics.',
+    cards: [
+      { target: 'su', native: 'water', transliteration: '' },
+      { target: 'çörək', native: 'bread', transliteration: '' },
+      { target: 'pendir', native: 'cheese', transliteration: '' },
+      { target: 'ət', native: 'meat', transliteration: '' },
+      { target: 'balıq', native: 'fish', transliteration: '' },
+      { target: 'meyvə', native: 'fruit', transliteration: '' },
+      { target: 'qəhvə', native: 'coffee', transliteration: '' },
+      { target: 'çay', native: 'tea', transliteration: '' },
+      { target: 'süd', native: 'milk', transliteration: '' },
+      { target: 'yumurta', native: 'egg', transliteration: '' },
+      { target: 'Acmışam', native: "I'm hungry", transliteration: '' },
+      { target: 'Çox dadlıdır', native: "It's delicious", transliteration: '' },
+      { target: 'Hesab, zəhmət olmasa', native: 'The bill, please', transliteration: '' },
+    ],
+  },
+]
+
 export const STARTER_DECKS: Record<LangCode, StarterDeck[]> = {
   hy: HY_DECKS,
   es: ES_DECKS,
   fr: FR_DECKS,
   ru: RU_DECKS,
+  az: AZ_DECKS,
 }

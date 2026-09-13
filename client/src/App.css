@@ -257,6 +257,47 @@
   --sheen: rgba(255, 255, 255, 0.1);
 }
 
+/* Azerbaijani — tulip field (light), Flame Towers at night (dark) */
+:root[data-theme='light'][data-lang='az'] {
+  --bg: #fdf2ee;
+  --bg-grad-1: #ffe4d6;
+  --bg-grad-2: #ffd0b8;
+  --card-bg: #ffffff;
+  --text: #4a2418;
+  --text-muted: #a3705a;
+  --border: #f5ddd0;
+  --accent-1: #f2b134;
+  --accent-2: #e2402a;
+  --accent-shadow: rgba(226, 64, 42, 0.32);
+  --glass-bg: rgba(255, 249, 245, 0.74);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --grid-line: rgba(200, 90, 50, 0.13);
+  --glow-1: rgba(242, 177, 52, 0.45);
+  --glow-2: rgba(226, 64, 42, 0.3);
+  --sheen: rgba(255, 255, 255, 0.62);
+}
+
+:root[data-theme='dark'][data-lang='az'] {
+  --bg: #0a1218;
+  --bg-grad-1: #0f1d24;
+  --bg-grad-2: #13242c;
+  --card-bg: #0e1a20;
+  --text: #eaf4f2;
+  --text-muted: #7fa8a8;
+  --border: #1c3038;
+  --accent-1: #2fb6c4;
+  --accent-2: #e8562a;
+  --accent-shadow: rgba(232, 86, 42, 0.4);
+  --glass-bg: rgba(20, 40, 46, 0.58);
+  --glass-bg-strong: rgba(24, 46, 52, 0.8);
+  --glass-border: rgba(90, 200, 210, 0.14);
+  --grid-line: rgba(80, 200, 210, 0.07);
+  --glow-1: rgba(47, 182, 196, 0.42);
+  --glow-2: rgba(232, 86, 42, 0.5);
+  --sheen: rgba(255, 255, 255, 0.1);
+}
+
 * {
   box-sizing: border-box;
 }

@@ -156,6 +156,14 @@ const LANGUAGES = {
     voices: { female: 'ru-RU-SvetlanaNeural', male: 'ru-RU-DmitryNeural' },
     needsKeyboard: true,
   },
+  az: {
+    name: 'Azerbaijani',
+    nativeName: 'Azerbaijani',
+    ttsLocale: 'az-AZ',
+    sttLocale: 'az-AZ',
+    voices: { female: 'az-AZ-BanuNeural', male: 'az-AZ-BabekNeural' },
+    needsKeyboard: false,
+  },
 };
 
 function buildToTargetPrompt(langConfig) {

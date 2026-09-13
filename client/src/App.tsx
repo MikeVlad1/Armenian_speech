@@ -97,6 +97,11 @@ function themeIconsFor(lang: LangCode, aprSrc: string, pomSrc: string): { light:
         light: { kind: 'emoji', char: '🌻', alt: 'Sunflower' },
         dark: { kind: 'emoji', char: '🐻', alt: 'Bear' },
       }
+    case 'az':
+      return {
+        light: { kind: 'emoji', char: '🌷', alt: 'Tulip' },
+        dark: { kind: 'emoji', char: '🔥', alt: 'Flame' },
+      }
   }
 }
 

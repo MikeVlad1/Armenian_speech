@@ -4,8 +4,8 @@ export type TranslateResult = {
   notes: string
 }
 
-export type LangCode = 'hy' | 'es' | 'fr' | 'ru'
-export const LANG_CODES: LangCode[] = ['hy', 'es', 'fr', 'ru']
+export type LangCode = 'hy' | 'es' | 'fr' | 'ru' | 'az'
+export const LANG_CODES: LangCode[] = ['hy', 'es', 'fr', 'ru', 'az']
 
 /**
  * Speech recognition needs to name English too — English isn't a learnable

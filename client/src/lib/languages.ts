@@ -38,4 +38,10 @@ export const LANGUAGES: Record<LangCode, LanguageConfig> = {
     needsKeyboard: true,
     sayWord: { latin: 'SKAZHI', native: 'Скажи' },
   },
+  az: {
+    name: 'Azerbaijani',
+    placeholder: 'Azərbaycan dilində cümlə yazın…',
+    needsKeyboard: false,
+    sayWord: { latin: 'DE', native: 'De' },
+  },
 }

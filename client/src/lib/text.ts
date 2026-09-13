@@ -39,6 +39,7 @@ const TEXT_CONFIG: Record<LangCode, TextConfig> = {
   es: { intraWordMarks: NO_INTRA_WORD_MARKS, ligatures: NO_LIGATURES },
   fr: { intraWordMarks: NO_INTRA_WORD_MARKS, ligatures: NO_LIGATURES },
   ru: { intraWordMarks: NO_INTRA_WORD_MARKS, ligatures: NO_LIGATURES },
+  az: { intraWordMarks: NO_INTRA_WORD_MARKS, ligatures: NO_LIGATURES },
 }
 
 function expandLigatures(text: string, ligatures: [RegExp, string][]): string {
