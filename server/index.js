@@ -4,9 +4,17 @@ import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import Stripe from 'stripe';
 
+// A comma-separated list rather than one string, so the old frontend host
+// and a new one (e.g. moving to Vercel, or adding a custom domain) can both
+// stay allowed during a migration instead of a hard cutover.
+const FRONTEND_ORIGINS = (process.env.FRONTEND_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true }));
+app.use(cors({ origin: FRONTEND_ORIGINS.length > 0 ? FRONTEND_ORIGINS : true }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (req, res) => {
