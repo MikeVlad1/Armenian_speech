@@ -18,6 +18,7 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 const AZURE_SPEECH_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_SPEECH_REGION = process.env.AZURE_SPEECH_REGION;
+const GOOGLE_SPEECH_API_KEY = process.env.GOOGLE_SPEECH_API_KEY;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
 const FREE_DAILY_LIMITS = {
@@ -127,6 +128,7 @@ const LANGUAGES = {
   hy: {
     name: 'Armenian',
     nativeName: 'Eastern Armenian',
+    provider: 'azure',
     ttsLocale: 'hy-AM',
     sttLocale: 'hy-AM',
     voices: { female: 'hy-AM-AnahitNeural', male: 'hy-AM-HaykNeural' },
@@ -135,30 +137,37 @@ const LANGUAGES = {
   es: {
     name: 'Spanish',
     nativeName: 'Spanish',
+    provider: 'google',
     ttsLocale: 'es-ES',
     sttLocale: 'es-ES',
-    voices: { female: 'es-ES-XimenaNeural', male: 'es-ES-AlvaroNeural' },
+    // Verify against GET https://texttospeech.googleapis.com/v1/voices?languageCode=es-ES
+    // before relying on these — picked from memory, not confirmed live.
+    voices: { female: 'es-ES-Neural2-A', male: 'es-ES-Neural2-B' },
     needsKeyboard: false,
   },
   fr: {
     name: 'French',
     nativeName: 'French',
+    provider: 'google',
     ttsLocale: 'fr-FR',
     sttLocale: 'fr-FR',
-    voices: { female: 'fr-FR-DeniseNeural', male: 'fr-FR-HenriNeural' },
+    voices: { female: 'fr-FR-Neural2-A', male: 'fr-FR-Neural2-B' },
     needsKeyboard: false,
   },
   ru: {
     name: 'Russian',
     nativeName: 'Russian',
+    provider: 'google',
     ttsLocale: 'ru-RU',
     sttLocale: 'ru-RU',
-    voices: { female: 'ru-RU-SvetlanaNeural', male: 'ru-RU-DmitryNeural' },
+    // Russian may not have Neural2 voices — verify, Wavenet is the safe fallback.
+    voices: { female: 'ru-RU-Wavenet-C', male: 'ru-RU-Wavenet-D' },
     needsKeyboard: true,
   },
   az: {
     name: 'Azerbaijani',
     nativeName: 'Azerbaijani',
+    provider: 'azure',
     ttsLocale: 'az-AZ',
     sttLocale: 'az-AZ',
     voices: { female: 'az-AZ-BanuNeural', male: 'az-AZ-BabekNeural' },
@@ -334,6 +343,52 @@ function expandLigaturesForSpeech(text) {
   return TTS_LIGATURES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
 }
 
+async function synthesizeAzure(langConfig, text, voiceName, prosodyRate) {
+  const speechText = langConfig.ttsLocale === 'hy-AM' ? expandLigaturesForSpeech(text) : text;
+  const ssml =
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langConfig.ttsLocale}">` +
+    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(speechText)}</prosody></voice>` +
+    `</speak>`;
+
+  const ttsRes = await fetch(`https://${AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+      'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+    },
+    body: ssml,
+  });
+
+  if (!ttsRes.ok) {
+    const errText = await ttsRes.text();
+    console.error('Azure TTS error', ttsRes.status, errText);
+    return null;
+  }
+  return Buffer.from(await ttsRes.arrayBuffer());
+}
+
+async function synthesizeGoogle(langConfig, text, voiceName, rate) {
+  const ttsRes = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_SPEECH_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: { text },
+      voice: { languageCode: langConfig.ttsLocale, name: voiceName },
+      // Google's speakingRate is a multiplier (1.0 = normal), unlike Azure's SSML percentage.
+      audioConfig: { audioEncoding: 'MP3', speakingRate: rate === 'slow' ? 0.7 : 1.0 },
+    }),
+  });
+
+  if (!ttsRes.ok) {
+    const errText = await ttsRes.text();
+    console.error('Google TTS error', ttsRes.status, errText);
+    return null;
+  }
+  const { audioContent } = await ttsRes.json();
+  return audioContent ? Buffer.from(audioContent, 'base64') : null;
+}
+
 app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   const { text, lang, voice, rate } = req.body ?? {};
   if (!text || typeof text !== 'string' || !text.trim()) {
@@ -343,40 +398,24 @@ app.post('/api/speak', enforceUsageLimit('speak'), async (req, res) => {
   if (!langConfig) {
     return res.status(400).json({ error: 'Unsupported language' });
   }
-  if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+  if (langConfig.provider === 'google' && !GOOGLE_SPEECH_API_KEY) {
+    return res.status(500).json({ error: 'Server is missing GOOGLE_SPEECH_API_KEY' });
+  }
+  if (langConfig.provider === 'azure' && (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION)) {
     return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
   }
 
   const voiceName = langConfig.voices[voice] || langConfig.voices.female;
-  // Slow playback helps learners catch individual sounds.
-  const prosodyRate = rate === 'slow' ? '-25%' : '0%';
-  const speechText = lang === 'hy' ? expandLigaturesForSpeech(text) : text;
-  const ssml =
-    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${langConfig.ttsLocale}">` +
-    `<voice name="${voiceName}"><prosody rate="${prosodyRate}">${escapeXml(speechText)}</prosody></voice>` +
-    `</speak>`;
 
   try {
-    const ttsRes = await fetch(
-      `https://${AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
-      {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-        },
-        body: ssml,
-      }
-    );
+    const buffer =
+      langConfig.provider === 'google'
+        ? await synthesizeGoogle(langConfig, text, voiceName, rate)
+        : await synthesizeAzure(langConfig, text, voiceName, rate === 'slow' ? '-25%' : '0%');
 
-    if (!ttsRes.ok) {
-      const errText = await ttsRes.text();
-      console.error('Azure TTS error', ttsRes.status, errText);
+    if (!buffer) {
       return res.status(502).json({ error: 'TTS request failed' });
     }
-
-    const buffer = Buffer.from(await ttsRes.arrayBuffer());
     res.set('Content-Type', 'audio/mpeg');
     res.send(buffer);
   } catch (err) {
@@ -406,16 +445,83 @@ function sttLocaleFor(lang) {
   return LANGUAGES[lang]?.sttLocale;
 }
 
+function sttProviderFor(lang) {
+  if (lang === 'en') return 'azure';
+  return LANGUAGES[lang]?.provider;
+}
+
+async function transcribeAzure(sttLocale, wavBuffer) {
+  const sttRes = await fetch(
+    `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${sttLocale}&format=detailed`,
+    {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Type': AZURE_STT_CONTENT_TYPE,
+        Accept: 'application/json',
+      },
+      body: wavBuffer,
+    }
+  );
+
+  if (!sttRes.ok) {
+    const errText = await sttRes.text();
+    console.error('Azure STT error', sttRes.status, errText);
+    return null;
+  }
+
+  const data = await sttRes.json();
+  // RecognitionStatus is 'Success' | 'NoMatch' | 'InitialSilenceTimeout' | ...
+  if (data.RecognitionStatus !== 'Success') {
+    return { transcript: '', status: data.RecognitionStatus || 'NoMatch' };
+  }
+
+  // DisplayText/Display run inverse-text-normalization, which rewrites a
+  // spoken number word into digits ("одиннадцать" -> "11"), a date, etc.
+  // That's fine for a transcription product but wrong for this app: cards
+  // are compared against the literal word/phrase, so a lesson on numbers
+  // would score a correct answer as 0%. Lexical is the raw recognized
+  // words with no such rewriting, so it's what pronunciation checking
+  // needs; only fall back to the formatted forms if Lexical is missing.
+  const lexical = data.NBest?.[0]?.Lexical;
+  return { transcript: lexical || data.DisplayText || data.NBest?.[0]?.Display || '', status: 'Success' };
+}
+
+async function transcribeGoogle(sttLocale, wavBuffer) {
+  const sttRes = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${GOOGLE_SPEECH_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      config: { encoding: 'LINEAR16', sampleRateHertz: 16000, languageCode: sttLocale },
+      audio: { content: wavBuffer.toString('base64') },
+    }),
+  });
+
+  if (!sttRes.ok) {
+    const errText = await sttRes.text();
+    console.error('Google STT error', sttRes.status, errText);
+    return null;
+  }
+
+  const data = await sttRes.json();
+  const transcript = data.results?.[0]?.alternatives?.[0]?.transcript ?? '';
+  return { transcript, status: transcript ? 'Success' : 'NoMatch' };
+}
+
 app.post(
   '/api/transcribe',
   express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '10mb' }),
   enforceUsageLimit('transcribe'),
   async (req, res) => {
     const sttLocale = sttLocaleFor(req.query.lang);
-    if (!sttLocale) {
+    const provider = sttProviderFor(req.query.lang);
+    if (!sttLocale || !provider) {
       return res.status(400).json({ error: 'Unsupported language' });
     }
-    if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+    if (provider === 'google' && !GOOGLE_SPEECH_API_KEY) {
+      return res.status(500).json({ error: 'Server is missing GOOGLE_SPEECH_API_KEY' });
+    }
+    if (provider === 'azure' && (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION)) {
       return res.status(500).json({ error: 'Server is missing AZURE_SPEECH_KEY or AZURE_SPEECH_REGION' });
     }
     if (!req.body || !req.body.length) {
@@ -423,43 +529,15 @@ app.post(
     }
 
     try {
-      const sttRes = await fetch(
-        `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${sttLocale}&format=detailed`,
-        {
-          method: 'POST',
-          headers: {
-            'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-            'Content-Type': AZURE_STT_CONTENT_TYPE,
-            Accept: 'application/json',
-          },
-          body: req.body,
-        }
-      );
+      const result =
+        provider === 'google'
+          ? await transcribeGoogle(sttLocale, req.body)
+          : await transcribeAzure(sttLocale, req.body);
 
-      if (!sttRes.ok) {
-        const errText = await sttRes.text();
-        console.error('Azure STT error', sttRes.status, errText);
+      if (!result) {
         return res.status(502).json({ error: 'Transcription failed' });
       }
-
-      const data = await sttRes.json();
-      // RecognitionStatus is 'Success' | 'NoMatch' | 'InitialSilenceTimeout' | ...
-      if (data.RecognitionStatus !== 'Success') {
-        return res.json({ transcript: '', status: data.RecognitionStatus || 'NoMatch' });
-      }
-
-      // DisplayText/Display run inverse-text-normalization, which rewrites a
-      // spoken number word into digits ("одиннадцать" -> "11"), a date, etc.
-      // That's fine for a transcription product but wrong for this app: cards
-      // are compared against the literal word/phrase, so a lesson on numbers
-      // would score a correct answer as 0%. Lexical is the raw recognized
-      // words with no such rewriting, so it's what pronunciation checking
-      // needs; only fall back to the formatted forms if Lexical is missing.
-      const lexical = data.NBest?.[0]?.Lexical;
-      res.json({
-        transcript: lexical || data.DisplayText || data.NBest?.[0]?.Display || '',
-        status: 'Success',
-      });
+      res.json(result);
     } catch (err) {
       console.error('transcribe error', err);
       res.status(502).json({ error: 'Transcription failed' });
