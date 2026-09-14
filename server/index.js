@@ -147,33 +147,33 @@ const LANGUAGES = {
   es: {
     name: 'Spanish',
     nativeName: 'Spanish',
-    provider: 'google',
+    // Google Cloud's org/account-level policy blocks plain API keys and
+    // needs service-account (ADC) auth instead - reverted to Azure for now
+    // rather than rewriting the integration around that mid-flight.
+    provider: 'azure',
     ttsLocale: 'es-ES',
     sttLocale: 'es-ES',
-    // Verify against GET https://texttospeech.googleapis.com/v1/voices?languageCode=es-ES
-    // before relying on these — picked from memory, not confirmed live.
-    voices: { female: 'es-ES-Neural2-A', male: 'es-ES-Neural2-B' },
+    voices: { female: 'es-ES-XimenaNeural', male: 'es-ES-AlvaroNeural' },
     needsKeyboard: false,
     needsTransliteration: false,
   },
   fr: {
     name: 'French',
     nativeName: 'French',
-    provider: 'google',
+    provider: 'azure',
     ttsLocale: 'fr-FR',
     sttLocale: 'fr-FR',
-    voices: { female: 'fr-FR-Neural2-A', male: 'fr-FR-Neural2-B' },
+    voices: { female: 'fr-FR-DeniseNeural', male: 'fr-FR-HenriNeural' },
     needsKeyboard: false,
     needsTransliteration: false,
   },
   ru: {
     name: 'Russian',
     nativeName: 'Russian',
-    provider: 'google',
+    provider: 'azure',
     ttsLocale: 'ru-RU',
     sttLocale: 'ru-RU',
-    // Russian may not have Neural2 voices — verify, Wavenet is the safe fallback.
-    voices: { female: 'ru-RU-Wavenet-C', male: 'ru-RU-Wavenet-D' },
+    voices: { female: 'ru-RU-SvetlanaNeural', male: 'ru-RU-DmitryNeural' },
     needsKeyboard: true,
     needsTransliteration: true,
   },
