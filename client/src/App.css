@@ -2262,11 +2262,57 @@ button:disabled {
   -webkit-backdrop-filter: blur(40px) saturate(140%);
 }
 
+/* Once a language is picked, the whole screen fades away rather than
+   vanishing outright - the real app underneath was there the whole time,
+   so fading this out reads as it fading in. */
+.onboarding-backdrop.leaving {
+  animation: onboarding-fade-out 0.3s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes onboarding-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-backdrop.leaving {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .onboarding-modal {
   max-width: 360px;
   align-items: center;
   text-align: center;
   padding: 1.8rem 1.6rem 1.6rem;
+  /* Looks like a miniature version of the page itself (same gradient/grid/
+     glow treatment as .page) rather than a plain glass card, and re-themes
+     live with whichever language is centered since these are the same
+     per-language CSS variables the real page background uses. */
+  background: linear-gradient(160deg, var(--bg-grad-1), var(--bg-grad-2));
+  transition: background 0.25s ease;
+}
+
+.onboarding-modal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(55% 55% at 15% 8%, var(--glow-1), transparent 70%),
+    radial-gradient(50% 50% at 90% 95%, var(--glow-2), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    36px 36px,
+    36px 36px;
+  opacity: 0.85;
 }
 
 .lang-wheel {

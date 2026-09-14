@@ -4,6 +4,7 @@ import { LANGUAGES } from '../lib/languages'
 
 type Props = {
   theme: 'light' | 'dark'
+  leaving: boolean
   onSelect: (lang: LangCode) => void
 }
 
@@ -22,7 +23,7 @@ function clamp(value: number, min: number, max: number): number {
  * where the item nearest the center grows and the rest shrink with distance,
  * so it reads at a glance as "you're choosing one thing" rather than a list.
  */
-export default function LanguageOnboarding({ theme, onSelect }: Props) {
+export default function LanguageOnboarding({ theme, leaving, onSelect }: Props) {
   const [centerIndex, setCenterIndex] = useState(0)
   const wheelRef = useRef<HTMLDivElement>(null)
   const frame = useRef<number | null>(null)
@@ -65,24 +66,23 @@ export default function LanguageOnboarding({ theme, onSelect }: Props) {
 
   // Previews the dark theme of whichever language is centered, live as the
   // user scrolls - a taste of each language's look before they've committed
-  // to one. data-lang doesn't need restoring on close: picking a language
-  // always calls onSelect, which sets the real active language right away.
-  // data-theme does need restoring - nothing else re-asserts it once this
-  // preview stops forcing dark, since the app's own theme setting never
-  // changes here. Read from the `theme` prop rather than snapshotting the
-  // DOM: on first mount the app's own theme effect hasn't necessarily run
-  // yet (child effects fire before the parent's), so a DOM read at that
-  // point can capture "unset" instead of the real value.
+  // to one. Switches back to the real theme (read from a prop, not
+  // snapshotted from the DOM - on first mount the app's own theme effect
+  // hasn't necessarily run yet, since child effects fire before the
+  // parent's, so a DOM read then can catch "unset" instead of the real
+  // value) as soon as `leaving` goes true, rather than waiting for unmount -
+  // otherwise the fade-out would reveal the real app still tinted by this
+  // preview for a moment before snapping to its actual theme. data-lang
+  // doesn't need the same care: picking a language always calls onSelect,
+  // which sets the real active language immediately.
   useEffect(() => {
+    if (leaving) {
+      document.documentElement.setAttribute('data-theme', theme)
+      return
+    }
     document.documentElement.setAttribute('data-theme', 'dark')
     document.documentElement.setAttribute('data-lang', activeLang)
-  }, [activeLang])
-
-  useEffect(() => {
-    return () => {
-      document.documentElement.setAttribute('data-theme', theme)
-    }
-  }, [theme])
+  }, [activeLang, leaving, theme])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -93,7 +93,11 @@ export default function LanguageOnboarding({ theme, onSelect }: Props) {
   }, [handleContinue])
 
   return (
-    <div className="modal-backdrop onboarding-backdrop" role="presentation" onClick={handleContinue}>
+    <div
+      className={`modal-backdrop onboarding-backdrop ${leaving ? 'leaving' : ''}`}
+      role="presentation"
+      onClick={handleContinue}
+    >
       <div
         className="card modal onboarding-modal"
         onClick={(e) => e.stopPropagation()}

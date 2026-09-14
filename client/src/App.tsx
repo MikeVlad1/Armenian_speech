@@ -108,6 +108,8 @@ function themeIconsFor(lang: LangCode, aprSrc: string, pomSrc: string): { light:
 
 /** Matches the .view-out animation duration in App.css. */
 const VIEW_FADE_MS = 160
+/** Matches the .onboarding-backdrop.leaving animation duration in App.css. */
+const ONBOARDING_FADE_MS = 300
 
 function App() {
   // Captured before ensureSeeded() (below) writes SEEDED_KEY for the first
@@ -117,6 +119,7 @@ function App() {
   // so absence is what actually means "first visit," not either value.)
   const [isFirstVisit] = useState(() => localStorage.getItem(SEEDED_KEY) === null)
   const [showOnboarding, setShowOnboarding] = useState(isFirstVisit)
+  const [onboardingLeaving, setOnboardingLeaving] = useState(false)
 
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [tab, setTab] = useState<Tab>(loadTab)
@@ -169,10 +172,15 @@ function App() {
 
   const handleOnboardingSelect = useCallback(
     (picked: LangCode) => {
+      if (onboardingLeaving) return
       setLang(picked)
-      setShowOnboarding(false)
+      setOnboardingLeaving(true)
+      setTimeout(() => {
+        setShowOnboarding(false)
+        setOnboardingLeaving(false)
+      }, ONBOARDING_FADE_MS)
     },
-    [setLang]
+    [setLang, onboardingLeaving]
   )
 
   const langDecks = useMemo(() => decks.filter((d) => d.lang === lang), [decks, lang])
@@ -656,7 +664,9 @@ function App() {
         {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
       </div>
 
-      {showOnboarding && <LanguageOnboarding theme={theme} onSelect={handleOnboardingSelect} />}
+      {showOnboarding && (
+        <LanguageOnboarding theme={theme} leaving={onboardingLeaving} onSelect={handleOnboardingSelect} />
+      )}
     </div>
   )
 }
