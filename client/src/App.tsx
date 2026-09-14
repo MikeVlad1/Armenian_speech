@@ -390,7 +390,10 @@ function App() {
                 <select
                   className="lang-picker"
                   value={lang}
-                  onChange={(e) => setLang(e.target.value as typeof lang)}
+                  onChange={(e) => {
+                    setLang(e.target.value as typeof lang)
+                    setTheme('dark')
+                  }}
                   aria-label="Learning language"
                   title="Language you're learning"
                 >
