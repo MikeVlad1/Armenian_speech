@@ -2259,18 +2259,41 @@ button:disabled {
 
 /* ---------- First-visit "what are we learning" wheel ---------- */
 
+/*
+ * Rather than blurring the live app behind it, this is opaquely painted with
+ * the exact same background recipe .page itself uses (solid --bg, the ruled
+ * grid, the ambient glow) - so it reads as "the app's own background" and
+ * fully hides whatever's actually behind it, with no reliance on
+ * backdrop-filter (blur quality/support varies enough across browsers that
+ * it wasn't a reliable way to guarantee "fully hidden" on its own).
+ */
 .onboarding-backdrop {
   z-index: 60;
-  /*
-   * Fully obscures the app behind it, rather than the lighter blur other
-   * modals use - this is a first-run screen, not a dialog over live content.
-   * The overlay is nearly opaque on its own (not just the blur) since
-   * backdrop-filter support/perf varies enough across browsers that the
-   * blur alone can't be the only thing making this read as "fully hidden."
-   */
-  background: rgba(8, 5, 6, 0.94);
-  backdrop-filter: blur(40px) saturate(140%);
-  -webkit-backdrop-filter: blur(40px) saturate(140%);
+  background-color: var(--bg);
+}
+
+.onboarding-backdrop::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.onboarding-backdrop::after {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  background: radial-gradient(38% 42% at 18% 8%, var(--glow-1), transparent 70%),
+    radial-gradient(34% 38% at 86% 22%, var(--glow-2), transparent 70%),
+    radial-gradient(40% 40% at 60% 95%, var(--glow-1), transparent 72%);
+  filter: blur(28px);
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Once a language is picked, the whole screen fades away rather than
@@ -2305,6 +2328,8 @@ button:disabled {
      per-language CSS variables the real page background uses. */
   background: linear-gradient(160deg, var(--bg-grad-1), var(--bg-grad-2));
   transition: background 0.25s ease;
+  /* Above the backdrop's own grid/glow pseudo-elements (z-index: 0). */
+  z-index: 1;
 }
 
 .onboarding-modal::after {
