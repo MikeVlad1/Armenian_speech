@@ -2270,6 +2270,7 @@ button:disabled {
 .onboarding-backdrop {
   z-index: 60;
   background-color: var(--bg);
+  transition: background-color 0.5s ease;
 }
 
 .onboarding-backdrop::before {
@@ -2281,6 +2282,7 @@ button:disabled {
   background-size: 72px 72px;
   pointer-events: none;
   z-index: 0;
+  transition: background-image 0.5s ease;
 }
 
 .onboarding-backdrop::after {
@@ -2294,6 +2296,7 @@ button:disabled {
   opacity: 0.75;
   pointer-events: none;
   z-index: 0;
+  transition: background 0.5s ease;
 }
 
 /* Once a language is picked, the whole screen fades away rather than
@@ -2327,7 +2330,7 @@ button:disabled {
      live with whichever language is centered since these are the same
      per-language CSS variables the real page background uses. */
   background: linear-gradient(160deg, var(--bg-grad-1), var(--bg-grad-2));
-  transition: background 0.25s ease;
+  transition: background 0.5s ease;
   /* Above the backdrop's own grid/glow pseudo-elements (z-index: 0). */
   z-index: 1;
 }
@@ -2343,6 +2346,7 @@ button:disabled {
     radial-gradient(50% 50% at 90% 95%, var(--glow-2), transparent 70%),
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  transition: background-image 0.5s ease;
   background-size:
     auto,
     auto,
@@ -2382,7 +2386,7 @@ button:disabled {
   font-size: 1.15rem;
   color: var(--text-muted);
   background: transparent;
-  transition: color 0.15s ease;
+  transition: color 0.5s ease;
 }
 
 .lang-wheel-item.active {
@@ -2391,6 +2395,7 @@ button:disabled {
 
 .onboarding-continue {
   width: 100%;
+  transition: background 0.5s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .donate-intervals {

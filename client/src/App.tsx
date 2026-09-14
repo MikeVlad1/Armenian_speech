@@ -176,6 +176,7 @@ function App() {
     (picked: LangCode) => {
       if (onboardingLeaving) return
       setLang(picked)
+      setTheme('dark')
       setOnboardingLeaving(true)
       setTimeout(() => {
         setShowOnboarding(false)
