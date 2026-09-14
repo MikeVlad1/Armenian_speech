@@ -5,6 +5,7 @@ import WordOrderExercise from './lessons/WordOrderExercise'
 import FillBlankExercise from './lessons/FillBlankExercise'
 import MultipleChoiceExercise from './lessons/MultipleChoiceExercise'
 import ListenSelectExercise from './lessons/ListenSelectExercise'
+import { playComplete } from '../lib/sound'
 
 type Props = {
   accessCode: string | null
@@ -43,6 +44,7 @@ export default function LessonsView({ accessCode, lang, cards, decks, isPro, onA
   }
 
   function next() {
+    if (session && index + 1 === session.length) playComplete()
     setAnswered(false)
     setIndex((i) => i + 1)
   }

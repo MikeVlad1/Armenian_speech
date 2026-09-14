@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ListenSelectExercise as ListenSelectExerciseType } from '../../lib/lessons'
 import { useAudio } from '../../lib/useAudio'
+import { playCorrect, playIncorrect } from '../../lib/sound'
 
 type Props = {
   exercise: ListenSelectExerciseType
@@ -16,7 +17,10 @@ export default function ListenSelectExercise({ exercise, accessCode, onResult }:
   function choose(option: string) {
     if (answered) return
     setPicked(option)
-    onResult(option === exercise.answer)
+    const correct = option === exercise.answer
+    onResult(correct)
+    if (correct) playCorrect()
+    else playIncorrect()
   }
 
   return (

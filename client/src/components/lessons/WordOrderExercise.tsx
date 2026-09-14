@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { WordOrderExercise as WordOrderExerciseType } from '../../lib/lessons'
+import { playCorrect, playIncorrect } from '../../lib/sound'
 
 type Tile = { word: string; id: number }
 
@@ -32,6 +33,8 @@ export default function WordOrderExercise({ exercise, onResult }: Props) {
     setChecked(true)
     setCorrect(isCorrect)
     onResult(isCorrect)
+    if (isCorrect) playCorrect()
+    else playIncorrect()
   }
 
   return (

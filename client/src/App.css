@@ -359,7 +359,8 @@ body {
 .tab-bar,
 .library-item,
 .keyboard,
-.theme-toggle {
+.theme-toggle,
+.sound-toggle {
   position: relative;
   background: var(--glass-bg);
   backdrop-filter: blur(22px) saturate(165%);
@@ -379,7 +380,8 @@ body {
 .tab-bar::before,
 .library-item::before,
 .keyboard::before,
-.theme-toggle::before {
+.theme-toggle::before,
+.sound-toggle::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -489,7 +491,8 @@ header {
   outline: none;
 }
 
-.theme-toggle {
+.theme-toggle,
+.sound-toggle {
   flex-shrink: 0;
   width: 2.75rem;
   height: 2.75rem;
@@ -503,23 +506,31 @@ header {
   transition: transform 0.45s var(--spring), box-shadow 0.45s var(--spring);
 }
 
-.theme-toggle > * {
+.theme-toggle > *,
+.sound-toggle > * {
   position: relative;
   z-index: 1;
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.sound-toggle:hover {
   transform: scale(1.09);
   box-shadow: var(--glass-shadow-lg);
   animation-play-state: paused;
 }
 
-.theme-toggle:active {
+.theme-toggle:active,
+.sound-toggle:active {
   transform: scale(0.94);
 }
 
+.sound-toggle {
+  font-size: 1.2rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .theme-toggle {
+  .theme-toggle,
+  .sound-toggle {
     animation: none;
   }
 }

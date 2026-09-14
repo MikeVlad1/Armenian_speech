@@ -33,6 +33,7 @@ import { useActiveLanguage } from './lib/useActiveLanguage'
 import { LANGUAGES } from './lib/languages'
 import { LANG_CODES, type LangCode } from './lib/types'
 import { PRO_BENEFITS } from './lib/plan'
+import { isSoundEnabled, setSoundEnabled } from './lib/sound'
 
 const ACCESS_CODE_KEY = 'armenian-speaker-access-code'
 const THEME_KEY = 'armenian-speaker-theme'
@@ -122,6 +123,7 @@ function App() {
   const [onboardingLeaving, setOnboardingLeaving] = useState(false)
 
   const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [soundOn, setSoundOn] = useState<boolean>(isSoundEnabled)
   const [tab, setTab] = useState<Tab>(loadTab)
   // The nav highlights the new tab immediately, while the panel keeps rendering
   // the old view until it has faded out — otherwise the content would swap
@@ -420,6 +422,19 @@ function App() {
                     {activeIcon.char}
                   </span>
                 )}
+              </button>
+              <button
+                className="sound-toggle"
+                onClick={() =>
+                  setSoundOn((v) => {
+                    setSoundEnabled(!v)
+                    return !v
+                  })
+                }
+                aria-label={soundOn ? 'Mute sound effects' : 'Unmute sound effects'}
+                title={soundOn ? 'Mute sound effects' : 'Unmute sound effects'}
+              >
+                {soundOn ? '🔊' : '🔇'}
               </button>
             </div>
             <p className="subtitle">

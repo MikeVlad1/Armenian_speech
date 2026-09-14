@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { MultipleChoiceExercise as MultipleChoiceExerciseType } from '../../lib/lessons'
+import { playCorrect, playIncorrect } from '../../lib/sound'
 
 type Props = {
   exercise: MultipleChoiceExerciseType
@@ -14,7 +15,10 @@ export default function MultipleChoiceExercise({ exercise, onResult }: Props) {
   function choose(option: string) {
     if (answered) return
     setPicked(option)
-    onResult(option === exercise.answer)
+    const correct = option === exercise.answer
+    onResult(correct)
+    if (correct) playCorrect()
+    else playIncorrect()
   }
 
   return (

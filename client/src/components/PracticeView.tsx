@@ -6,6 +6,7 @@ import { compareWords, scoreLabel, similarity, type WordComparison } from '../li
 import { useAudio } from '../lib/useAudio'
 import { useSpeechRecorder } from '../lib/useSpeechRecorder'
 import { canUseAudio } from '../lib/plan'
+import { playCorrect, playIncorrect } from '../lib/sound'
 import { KEYBOARDS } from '../data/keyboards'
 import Keyboard from './Keyboard'
 
@@ -124,6 +125,8 @@ export default function PracticeView({
       setScore(pct)
       setWordResults(compareWords(current.target, heard, current.lang))
       onAnswer(pct >= 65)
+      if (pct >= 65) playCorrect()
+      else playIncorrect()
     } catch (err) {
       if (err instanceof ApiError && err.limitReached) onLimitReached()
       setError(err instanceof Error ? err.message : 'Could not check that recording')
@@ -139,6 +142,8 @@ export default function PracticeView({
     setWordResults(compareWords(current.target, typed, current.lang))
     setListenChecked(true)
     onAnswer(pct >= 65)
+    if (pct >= 65) playCorrect()
+    else playIncorrect()
   }
 
   const deckOptions = useMemo(

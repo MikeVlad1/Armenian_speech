@@ -4,6 +4,7 @@ import { LANGUAGES } from '../lib/languages'
 import { useAudio } from '../lib/useAudio'
 import { canUseAudio } from '../lib/plan'
 import { pickDistractors, shuffle } from '../lib/quiz'
+import { playComplete, playCorrect, playIncorrect } from '../lib/sound'
 
 type Props = {
   accessCode: string | null
@@ -147,6 +148,8 @@ export default function QuizView({ accessCode, lang, cards, decks, isPro, onAnsw
     const correct = option === question.answer
     if (correct) setScore((s) => s + 1)
     onAnswer(correct)
+    if (correct) playCorrect()
+    else playIncorrect()
   }
 
   return (
@@ -205,6 +208,7 @@ export default function QuizView({ accessCode, lang, cards, decks, isPro, onAnsw
             <button
               className="primary"
               onClick={() => {
+                if (index + 1 === questions.length) playComplete()
                 setPicked(null)
                 setIndex((i) => i + 1)
               }}

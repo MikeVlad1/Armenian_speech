@@ -5,6 +5,7 @@ import { normalize } from '../../lib/text'
 import { LANGUAGES } from '../../lib/languages'
 import { KEYBOARDS } from '../../data/keyboards'
 import Keyboard from '../Keyboard'
+import { playCorrect, playIncorrect } from '../../lib/sound'
 
 type Props = {
   exercise: FillBlankExerciseType
@@ -27,6 +28,8 @@ export default function FillBlankExercise({ exercise, lang, onResult }: Props) {
     setChecked(true)
     setCorrect(isCorrect)
     onResult(isCorrect)
+    if (isCorrect) playCorrect()
+    else playIncorrect()
   }
 
   return (
