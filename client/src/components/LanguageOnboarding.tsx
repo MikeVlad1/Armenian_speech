@@ -3,6 +3,7 @@ import { LANG_CODES, type LangCode } from '../lib/types'
 import { LANGUAGES } from '../lib/languages'
 
 type Props = {
+  theme: 'light' | 'dark'
   onSelect: (lang: LangCode) => void
 }
 
@@ -21,7 +22,7 @@ function clamp(value: number, min: number, max: number): number {
  * where the item nearest the center grows and the rest shrink with distance,
  * so it reads at a glance as "you're choosing one thing" rather than a list.
  */
-export default function LanguageOnboarding({ onSelect }: Props) {
+export default function LanguageOnboarding({ theme, onSelect }: Props) {
   const [centerIndex, setCenterIndex] = useState(0)
   const wheelRef = useRef<HTMLDivElement>(null)
   const frame = useRef<number | null>(null)
@@ -61,6 +62,27 @@ export default function LanguageOnboarding({ onSelect }: Props) {
   const handleContinue = useCallback(() => {
     onSelect(activeLang)
   }, [onSelect, activeLang])
+
+  // Previews the dark theme of whichever language is centered, live as the
+  // user scrolls - a taste of each language's look before they've committed
+  // to one. data-lang doesn't need restoring on close: picking a language
+  // always calls onSelect, which sets the real active language right away.
+  // data-theme does need restoring - nothing else re-asserts it once this
+  // preview stops forcing dark, since the app's own theme setting never
+  // changes here. Read from the `theme` prop rather than snapshotting the
+  // DOM: on first mount the app's own theme effect hasn't necessarily run
+  // yet (child effects fire before the parent's), so a DOM read at that
+  // point can capture "unset" instead of the real value.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    document.documentElement.setAttribute('data-lang', activeLang)
+  }, [activeLang])
+
+  useEffect(() => {
+    return () => {
+      document.documentElement.setAttribute('data-theme', theme)
+    }
+  }, [theme])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

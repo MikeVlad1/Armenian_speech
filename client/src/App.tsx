@@ -656,7 +656,7 @@ function App() {
         {showDonate && <DonateModal onClose={() => setShowDonate(false)} />}
       </div>
 
-      {showOnboarding && <LanguageOnboarding onSelect={handleOnboardingSelect} />}
+      {showOnboarding && <LanguageOnboarding theme={theme} onSelect={handleOnboardingSelect} />}
     </div>
   )
 }
