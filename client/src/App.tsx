@@ -627,10 +627,8 @@ function App() {
               lang={lang}
               cards={langCards}
               decks={langDecks}
-              isPro={isPro}
               onAnswer={recordAnswer}
               onLimitReached={() => setLimitReached(true)}
-              onUpgrade={() => void handleUpgrade()}
             />
           )}
 

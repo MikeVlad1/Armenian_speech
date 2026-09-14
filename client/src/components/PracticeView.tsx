@@ -5,7 +5,6 @@ import { ApiError, transcribe } from '../lib/api'
 import { compareWords, scoreLabel, similarity, type WordComparison } from '../lib/text'
 import { useAudio } from '../lib/useAudio'
 import { useSpeechRecorder } from '../lib/useSpeechRecorder'
-import { canUseAudio } from '../lib/plan'
 import { playCorrect, playIncorrect } from '../lib/sound'
 import { KEYBOARDS } from '../data/keyboards'
 import Keyboard from './Keyboard'
@@ -15,10 +14,8 @@ type Props = {
   lang: LangCode
   cards: Card[]
   decks: Deck[]
-  isPro: boolean
   onAnswer: (correct: boolean) => void
   onLimitReached: () => void
-  onUpgrade: () => void
 }
 
 type Mode = 'speaking' | 'listening'
@@ -32,16 +29,7 @@ function shuffle<T>(items: T[]): T[] {
   return copy
 }
 
-export default function PracticeView({
-  accessCode,
-  lang,
-  cards,
-  decks,
-  isPro,
-  onAnswer,
-  onLimitReached,
-  onUpgrade,
-}: Props) {
+export default function PracticeView({ accessCode, lang, cards, decks, onAnswer, onLimitReached }: Props) {
   const [mode, setMode] = useState<Mode>('speaking')
   const [deckId, setDeckId] = useState('all')
   const [order, setOrder] = useState<Card[]>([])
@@ -82,7 +70,6 @@ export default function PracticeView({
   const current = order[index]
   const keyboard = KEYBOARDS[lang]
   const needsKeyboard = LANGUAGES[lang].needsKeyboard && !!keyboard
-  const audioAllowed = !current || canUseAudio(current, decks, isPro)
 
   function resetAttempt() {
     setTranscript(null)
@@ -184,26 +171,7 @@ export default function PracticeView({
 
       {(error || audio.error) && <div className="error-banner">{error || audio.error}</div>}
 
-      {current && !audioAllowed && (
-        <div className="card practice-card locked-card">
-          <span className="flashcard-hint">🔒 Pro feature</span>
-          <p className="flashcard-front">{current.target}</p>
-          <p className="notes">
-            Speaking and listening practice on your own cards is a Pro feature — free accounts can
-            practice the built-in decks. Upgrade to Pro to practice pronunciation on everything you save.
-          </p>
-          <div className="result-actions center">
-            <button className="primary" onClick={onUpgrade}>
-              Upgrade to Pro - $3.99/mo
-            </button>
-            <button className="link" onClick={nextCard}>
-              Skip →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {current && audioAllowed && (
+      {current && (
         <div className="card practice-card">
           {mode === 'speaking' ? (
             <>
